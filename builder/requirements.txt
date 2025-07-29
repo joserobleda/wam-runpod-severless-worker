@@ -7,7 +7,7 @@ runpod==1.4.2
 huggingface_hub
 modelscope
 
-# Video generation and diffusion models (lightweight versions)
+# Video generation and diffusion models (PyTorch 2.1.2 compatible)
 diffusers==0.25.1
 transformers==4.36.2
 accelerate==0.25.0
@@ -19,7 +19,7 @@ imageio==2.33.1
 imageio-ffmpeg==0.4.9
 pillow==10.1.0
 
-# Numerical computing (compatible versions)
+# Numerical computing (PyTorch 2.1.2 compatible)
 numpy==1.24.4
 scipy==1.11.4
 
@@ -27,8 +27,8 @@ scipy==1.11.4
 tokenizers==0.15.0
 sentencepiece==0.1.99
 
-# Memory management (lighter version)
-xformers==0.0.23
+# Memory management (PyTorch 2.1.2 compatible)
+xformers==0.0.23.post1
 
 # S3/R2 upload support
 boto3>=1.26.0

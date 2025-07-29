@@ -34,18 +34,20 @@ RUN pip install --no-cache-dir packaging wheel setuptools && \
 RUN git clone --depth=1 https://github.com/Wan-Video/Wan2.2.git ${WORKER_DIR}/wan2.2_code && \
     rm -rf ${WORKER_DIR}/wan2.2_code/.git
 
-# Download model with selective files only
+# Download model with optimized approach and fallback
 RUN mkdir -p ${WORKER_MODEL_DIR}/wan2.2-ti2v-5b && \
-    cd ${WORKER_MODEL_DIR}/wan2.2-ti2v-5b && \
-    git init && \
-    git remote add origin https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B && \
-    git config core.sparseCheckout true && \
-    echo "*.json" > .git/info/sparse-checkout && \
-    echo "*.safetensors" >> .git/info/sparse-checkout && \
-    echo "*.bin" >> .git/info/sparse-checkout && \
-    echo "*.txt" >> .git/info/sparse-checkout && \
-    git pull origin main && \
-    rm -rf .git
+    cd ${WORKER_MODEL_DIR} && \
+    (GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B wan2.2-ti2v-5b && \
+     cd wan2.2-ti2v-5b && \
+     git lfs pull --include="*.safetensors,*.bin,*.json,*.txt" && \
+     rm -rf .git/lfs/objects .git/hooks .git/refs .git/logs && \
+     find . -name "*.md" -delete || true) || \
+    (echo "Optimized download failed, trying simple clone..." && \
+     rm -rf wan2.2-ti2v-5b && \
+     git clone --depth=1 https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B wan2.2-ti2v-5b && \
+     cd wan2.2-ti2v-5b && \
+     rm -rf .git && \
+     find . -name "*.md" -delete || true)
 
 # Stage 2: Runtime stage (much smaller base)
 FROM nvidia/cuda:12.1-runtime-ubuntu22.04
