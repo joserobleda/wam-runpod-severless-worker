@@ -58,8 +58,8 @@ echo "💾 Disk Space:"
 df -h /tmp
 echo ""
 
-# Set Python path to include the Wan 2.2 model directory
-export PYTHONPATH="${WORKER_MODEL_DIR}/wan2.2-ti2v-5b:${PYTHONPATH}"
+# Set Python path to include the Wan 2.2 code directory
+export PYTHONPATH="${WORKER_DIR}/wan2.2_code:${PYTHONPATH}"
 
 # Change to the working directory
 cd /app

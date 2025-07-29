@@ -60,13 +60,13 @@ RUN git lfs install
 # Download Wan 2.2 TI2V-5B model (optimized)
 RUN mkdir -p ${WORKER_MODEL_DIR}
 
-# Download model with optimizations for faster builds
-RUN cd ${WORKER_MODEL_DIR} && \
-    GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B wan2.2-ti2v-5b && \
-    cd wan2.2-ti2v-5b && \
-    git lfs pull --include="*.safetensors,*.bin" && \
-    git lfs pull --include="config.json,*.json" && \
-    rm -rf .git/lfs/objects
+# Download Wan 2.2 inference code first
+RUN git clone https://github.com/Wan-Video/Wan2.2.git ${WORKER_DIR}/wan2.2_code
+
+# Download Wan2.2-TI2V-5B model
+RUN git clone https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B ${WORKER_MODEL_DIR}/wan2.2-ti2v-5b || \
+    (echo "Git clone failed, trying with depth=1..." && \
+     git clone --depth=1 https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B ${WORKER_MODEL_DIR}/wan2.2-ti2v-5b)
 
 # Switch back to root to add files and set permissions
 USER root

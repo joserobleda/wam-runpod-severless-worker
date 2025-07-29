@@ -1,7 +1,11 @@
 # Required Python packages for Wan 2.2 TI2V-5B Video Generation
-# Recommended to lock the version number to avoid unexpected changes.
+# Based on official Wan 2.2 requirements: torch >= 2.4.0
 
 runpod==1.4.2
+
+# Wan 2.2 specific dependencies
+huggingface_hub
+modelscope
 
 # Video generation and diffusion models
 diffusers==0.31.0
