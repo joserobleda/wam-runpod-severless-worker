@@ -44,6 +44,9 @@ RUN mkdir -p /home/user/.triton/autotune && \
 # Install build dependencies first
 RUN pip install --no-cache-dir packaging>=21.0 wheel>=0.37.0 setuptools>=65.0
 
+# Install PyTorch first (required for flash-attn build)
+RUN pip install --no-cache-dir torch==2.5.1 torchaudio==2.5.1 torchvision==0.20.1
+
 # Install Python dependencies
 COPY builder/requirements.txt ${WORKER_DIR}/requirements.txt
 RUN pip install --no-cache-dir -r ${WORKER_DIR}/requirements.txt && \
