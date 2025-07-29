@@ -20,7 +20,7 @@ from botocore.exceptions import ClientError
 
 
 # Model params
-model_dir = os.getenv("WORKER_MODEL_DIR", "/model")
+model_dir = os.getenv("WORKER_MODEL_DIR", "/app/model")
 
 
 def upload_video(video_path: str, key: str):
