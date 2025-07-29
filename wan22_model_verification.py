@@ -174,8 +174,8 @@ def check_deployment_readiness():
         with open(dockerfile_path, 'r') as f:
             dockerfile_content = f.read()
         
-        multi_stage = "FROM nvidia/cuda:11.8-devel-ubuntu22.04 AS builder" in dockerfile_content
-        runtime_stage = "FROM nvidia/cuda:11.8-runtime-ubuntu22.04" in dockerfile_content
+        multi_stage = "FROM ubuntu:22.04 AS builder" in dockerfile_content
+        runtime_stage = "FROM ubuntu:22.04" in dockerfile_content
         optimized = multi_stage and runtime_stage
         
         checks.append(("✅" if optimized else "❌", "Multi-stage Docker build (size optimization)", optimized))
@@ -185,9 +185,9 @@ def check_deployment_readiness():
         has_cleanup = any(cmd in dockerfile_content for cmd in cleanup_commands)
         checks.append(("✅" if has_cleanup else "❌", "Build cleanup (size optimization)", has_cleanup))
         
-        # Check for CUDA runtime vs devel
-        uses_runtime = "runtime-ubuntu22.04" in dockerfile_content
-        checks.append(("✅" if uses_runtime else "❌", "CUDA runtime image (not devel)", uses_runtime))
+        # Check for CUDA installation in build
+        has_cuda_install = "cuda-toolkit-11-8" in dockerfile_content and "cuda-runtime-11-8" in dockerfile_content
+        checks.append(("✅" if has_cuda_install else "❌", "CUDA 11.8 installation (toolkit + runtime)", has_cuda_install))
     else:
         checks.append(("❌", "Dockerfile not found", False))
         optimized = False

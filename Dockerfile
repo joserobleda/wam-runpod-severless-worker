@@ -1,16 +1,26 @@
 # Multi-stage build for optimized image size
 # Stage 1: Build stage with all tools
-FROM nvidia/cuda:11.8-devel-ubuntu22.04 AS builder
+FROM ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKER_DIR=/app
 ENV WORKER_MODEL_DIR=/app/model
 
-# Install build dependencies
+# Install build dependencies and CUDA
 RUN apt-get update && \
-    apt-get install -y wget curl git build-essential python3-dev python3-pip && \
+    apt-get install -y wget curl git build-essential python3-dev python3-pip gnupg2 && \
+    # Add NVIDIA CUDA repository
+    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.0-1_all.deb && \
+    dpkg -i cuda-keyring_1.0-1_all.deb && \
+    apt-get update && \
+    # Install CUDA toolkit
+    apt-get install -y cuda-toolkit-11-8 && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* cuda-keyring_1.0-1_all.deb
+
+# Set CUDA environment
+ENV PATH=/usr/local/cuda/bin:$PATH
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
 # Install git-lfs
 RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
@@ -50,7 +60,7 @@ RUN mkdir -p ${WORKER_MODEL_DIR}/wan2.2-ti2v-5b && \
      find . -name "*.md" -delete || true)
 
 # Stage 2: Runtime stage (much smaller base)
-FROM nvidia/cuda:11.8-runtime-ubuntu22.04
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKER_DIR=/app
@@ -58,11 +68,21 @@ ENV WORKER_MODEL_DIR=/app/model
 ENV WORKER_USE_CUDA=True
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
-# Install only runtime dependencies (no build tools)
+# Install runtime dependencies and minimal CUDA runtime
 RUN apt-get update && \
-    apt-get install -y python3 python3-pip ffmpeg libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender-dev libgomp1 && \
+    apt-get install -y python3 python3-pip ffmpeg libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender-dev libgomp1 wget gnupg2 && \
+    # Add NVIDIA CUDA repository for runtime
+    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.0-1_all.deb && \
+    dpkg -i cuda-keyring_1.0-1_all.deb && \
+    apt-get update && \
+    # Install minimal CUDA runtime
+    apt-get install -y cuda-runtime-11-8 && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* cuda-keyring_1.0-1_all.deb
+
+# Set CUDA environment for runtime
+ENV PATH=/usr/local/cuda/bin:$PATH
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
 # Create non-root user
 RUN adduser --disabled-password --gecos '' --shell /bin/bash user && \
