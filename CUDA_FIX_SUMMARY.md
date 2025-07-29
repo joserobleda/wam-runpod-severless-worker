@@ -62,6 +62,18 @@ The Docker build should now work successfully with:
 3. **Expected size**: ~15-20GB (optimized multi-stage build)
 4. **Deploy to RunPod**: Ready for production deployment
 
+## 🔧 Additional Fix Applied
+
+**Problem**: Multi-stage build failing during Python package copy
+- `ERROR: "/usr/local/lib/python3.10/site-packages": not found`
+
+**Root Cause**: Ubuntu 22.04 uses different Python package directory structure than expected
+
+**Solution**: 
+- Copy entire `/usr/local` directory from builder to runtime stage
+- Added debug output to show actual package locations
+- More robust approach that handles any Python directory structure
+
 The CUDA version change does **NOT** affect model compatibility or performance - Wan 2.2 works perfectly with CUDA 11.8.
 
 ## ✅ Why Ubuntu + CUDA Installation is Better

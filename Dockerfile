@@ -38,7 +38,11 @@ COPY builder/requirements.txt ${WORKER_DIR}/requirements.txt
 # Install PyTorch >= 2.4.0 as required by Wan 2.2 (CUDA 11.8 compatible)
 RUN pip install --no-cache-dir packaging wheel setuptools && \
     pip install --no-cache-dir torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu118 && \
-    pip install --no-cache-dir -r ${WORKER_DIR}/requirements.txt
+    pip install --no-cache-dir -r ${WORKER_DIR}/requirements.txt && \
+    echo "=== Python package locations ===" && \
+    ls -la /usr/local/lib/ && \
+    find /usr/local/lib -name "*packages*" -type d && \
+    echo "=== End package locations ==="
 
 # Download Wan 2.2 code (small)
 RUN git clone --depth=1 https://github.com/Wan-Video/Wan2.2.git ${WORKER_DIR}/wan2.2_code && \
@@ -89,9 +93,11 @@ RUN adduser --disabled-password --gecos '' --shell /bin/bash user && \
     mkdir -p ${WORKER_DIR} && \
     chown -R user:user ${WORKER_DIR}
 
-# Copy Python environment from builder
-COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Create Python directories and copy environment from builder
+RUN mkdir -p /usr/local/lib/python3.10
+
+# Copy Python packages and binaries (copy entire /usr/local to ensure we get everything)
+COPY --from=builder /usr/local /usr/local
 
 # Copy application code and model
 COPY --from=builder ${WORKER_DIR}/wan2.2_code ${WORKER_DIR}/wan2.2_code
