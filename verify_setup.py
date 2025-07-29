@@ -52,20 +52,20 @@ def check_python_dependencies() -> Dict[str, bool]:
     print_section("Python Dependencies Check")
     results = {}
     
-    # Required packages with expected versions
+    # Required packages with expected versions (Official Wan 2.2 requirements)
     required_packages = {
-        'torch': '2.1.2',
-        'torchvision': '0.16.2', 
-        'torchaudio': '2.1.2',
-        'transformers': '4.36.2',
-        'diffusers': '0.25.1',
-        'accelerate': '0.25.0',
-        'safetensors': '0.4.1',
-        'opencv-python': '4.8.1.78',
-        'imageio': '2.33.1',
-        'pillow': '10.1.0',
-        'numpy': '1.24.4',
-        'scipy': '1.11.4',
+        'torch': '2.4.0',  # Official requirement: torch >= 2.4.0
+        'torchvision': '0.19.0', 
+        'torchaudio': '2.4.0',
+        'transformers': '4.44.0',
+        'diffusers': '0.30.0',
+        'accelerate': '0.33.0',
+        'safetensors': '0.4.4',
+        'opencv-python': '4.10.0',
+        'imageio': '2.35.0',
+        'pillow': '10.4.0',
+        'numpy': '1.26.0',
+        'scipy': '1.14.0',
         'runpod': '1.4.2',
         'boto3': None,  # Any recent version is fine
         'requests': None,
@@ -191,15 +191,16 @@ def check_wan22_compatibility() -> Dict[str, bool]:
         import subprocess
         import tempfile
         
-        # Test command structure (without actually running)
+        # Test official Wan 2.2 TI2V-5B command structure
+        # Based on: https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B
         wan22_cmd = [
             'python', '/app/wan2.2_code/generate.py',
-            '--task', 'ti2v-5B',
-            '--size', '1280*704',
-            '--ckpt_dir', '/app/model/wan2.2-ti2v-5b',
-            '--offload_model', 'True',
-            '--convert_model_dtype',
-            '--t5_cpu',
+            '--task', 'ti2v-5B',                    # Official task name
+            '--size', '1280*704',                   # Official 720P resolution
+            '--ckpt_dir', '/app/model/wan2.2-ti2v-5b',  # Model directory
+            '--offload_model', 'True',              # Memory optimization for RTX 4090
+            '--convert_model_dtype',                # Model dtype conversion
+            '--t5_cpu',                            # Move T5 to CPU for memory
             '--prompt', 'Test prompt',
             '--guidance_scale', '7.5',
             '--num_inference_steps', '25',

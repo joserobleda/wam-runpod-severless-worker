@@ -1,34 +1,35 @@
-# Lightweight requirements for Wan 2.2 TI2V-5B Video Generation
-# Using PyTorch 2.1.2+cu121 (installed in Dockerfile)
+# Official Wan 2.2 TI2V-5B requirements
+# Based on https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B
+# Requires: torch >= 2.4.0 (installed in Dockerfile as 2.4.1+cu124)
 
 runpod==1.4.2
 
-# Wan 2.2 specific dependencies
-huggingface_hub
-modelscope
+# Wan 2.2 official dependencies
+huggingface_hub>=0.24.0
+modelscope>=1.9.0
 
-# Video generation and diffusion models (PyTorch 2.1.2 compatible)
-diffusers==0.25.1
-transformers==4.36.2
-accelerate==0.25.0
-safetensors==0.4.1
+# Video generation and diffusion models (PyTorch 2.4.1 compatible)
+diffusers>=0.30.0
+transformers>=4.44.0
+accelerate>=0.33.0
+safetensors>=0.4.4
 
 # Video processing and encoding
-opencv-python-headless==4.8.1.78
-imageio==2.33.1
-imageio-ffmpeg==0.4.9
-pillow==10.1.0
+opencv-python-headless>=4.10.0.84
+imageio>=2.35.0
+imageio-ffmpeg>=0.5.1
+pillow>=10.4.0
 
-# Numerical computing (PyTorch 2.1.2 compatible)
-numpy==1.24.4
-scipy==1.11.4
+# Numerical computing (PyTorch 2.4.1 compatible)
+numpy>=1.26.0
+scipy>=1.14.0
 
 # Model utilities and tokenization
-tokenizers==0.15.0
-sentencepiece==0.1.99
+tokenizers>=0.19.0
+sentencepiece>=0.2.0
 
-# Memory management (PyTorch 2.1.2 compatible)
-xformers==0.0.23.post1
+# Memory management and optimization
+xformers>=0.0.27
 
 # S3/R2 upload support
 boto3>=1.26.0
