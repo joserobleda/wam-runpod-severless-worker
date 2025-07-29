@@ -39,6 +39,11 @@ fi
 
 echo "✅ Model directory found: ${WORKER_MODEL_DIR}/wan2.2-ti2v-5b"
 
+# Optionally install flash-attn at runtime for better memory efficiency
+# (commented out by default to reduce build time - uncomment if needed)
+# echo "📦 Installing flash-attn for memory efficiency..."
+# pip install --no-cache-dir flash-attn==2.6.3
+
 # Check GPU availability
 if command -v nvidia-smi &> /dev/null; then
     echo "🔧 GPU Information:"

@@ -57,9 +57,16 @@ RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.d
 RUN sudo apt-get install git-lfs
 RUN git lfs install
 
-# Download Wan 2.2 TI2V-5B model
+# Download Wan 2.2 TI2V-5B model (optimized)
 RUN mkdir -p ${WORKER_MODEL_DIR}
-RUN git clone https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B ${WORKER_MODEL_DIR}/wan2.2-ti2v-5b
+
+# Download model with optimizations for faster builds
+RUN cd ${WORKER_MODEL_DIR} && \
+    GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B wan2.2-ti2v-5b && \
+    cd wan2.2-ti2v-5b && \
+    git lfs pull --include="*.safetensors,*.bin" && \
+    git lfs pull --include="config.json,*.json" && \
+    rm -rf .git/lfs/objects
 
 # Switch back to root to add files and set permissions
 USER root

@@ -41,6 +41,7 @@ class VideoGenerator:
         self.device = "cuda" if use_cuda and torch.cuda.is_available() else "cpu"
         print(f"Using device: {self.device}")
     
+
     def setup(self):
         """Load the Wan 2.2 TI2V-5B model"""
         try:

@@ -23,8 +23,8 @@ scipy==1.14.1
 tokenizers==0.20.3
 sentencepiece==0.2.0
 
-# Flash attention for memory efficiency (if available)
-flash-attn==2.6.3
+# Flash attention for memory efficiency (use pre-compiled wheel if available)
+# flash-attn==2.6.3  # Commented out to reduce build time - will install via pip if needed at runtime
 
 # Memory management and optimization
 xformers==0.0.29
