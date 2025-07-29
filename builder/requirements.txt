@@ -1,11 +1,6 @@
 # Required Python packages for Wan 2.2 TI2V-5B Video Generation
 # Recommended to lock the version number to avoid unexpected changes.
 
-# Build dependencies (must be installed first)
-packaging>=21.0
-wheel>=0.37.0
-setuptools>=65.0
-
 runpod==1.4.2
 
 # PyTorch ecosystem - compatible versions (ensure torch >= 2.4.0 as per Wan 2.2 requirements)
