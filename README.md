@@ -1,0 +1,1 @@
+# wam-runpod-severless-worker
