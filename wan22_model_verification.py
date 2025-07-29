@@ -39,7 +39,7 @@ def check_official_requirements():
     
     # 2. PyTorch Version Requirement
     pytorch_requirement = "torch >= 2.4.0"
-    pytorch_in_dockerfile = ("torch==2.4.1" in dockerfile_content and "cu124" in dockerfile_content) if 'dockerfile_content' in locals() else False
+    pytorch_in_dockerfile = ("torch==2.4.1" in dockerfile_content and "cu118" in dockerfile_content) if 'dockerfile_content' in locals() else False
     checks.append(("✅" if pytorch_in_dockerfile else "❌", f"PyTorch Version: {pytorch_requirement}", pytorch_in_dockerfile))
     
     # 3. Official Command Structure
@@ -174,8 +174,8 @@ def check_deployment_readiness():
         with open(dockerfile_path, 'r') as f:
             dockerfile_content = f.read()
         
-        multi_stage = "FROM nvidia/cuda:12.4-devel-ubuntu22.04 AS builder" in dockerfile_content
-        runtime_stage = "FROM nvidia/cuda:12.4-runtime-ubuntu22.04" in dockerfile_content
+        multi_stage = "FROM nvidia/cuda:11.8-devel-ubuntu22.04 AS builder" in dockerfile_content
+        runtime_stage = "FROM nvidia/cuda:11.8-runtime-ubuntu22.04" in dockerfile_content
         optimized = multi_stage and runtime_stage
         
         checks.append(("✅" if optimized else "❌", "Multi-stage Docker build (size optimization)", optimized))

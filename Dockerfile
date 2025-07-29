@@ -1,6 +1,6 @@
 # Multi-stage build for optimized image size
 # Stage 1: Build stage with all tools
-FROM nvidia/cuda:12.4-devel-ubuntu22.04 AS builder
+FROM nvidia/cuda:11.8-devel-ubuntu22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKER_DIR=/app
@@ -25,9 +25,9 @@ WORKDIR ${WORKER_DIR}
 # Install Python dependencies in builder stage
 COPY builder/requirements.txt ${WORKER_DIR}/requirements.txt
 
-# Install PyTorch >= 2.4.0 as required by Wan 2.2 (CUDA 12.4 compatible)
+# Install PyTorch >= 2.4.0 as required by Wan 2.2 (CUDA 11.8 compatible)
 RUN pip install --no-cache-dir packaging wheel setuptools && \
-    pip install --no-cache-dir torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu124 && \
+    pip install --no-cache-dir torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu118 && \
     pip install --no-cache-dir -r ${WORKER_DIR}/requirements.txt
 
 # Download Wan 2.2 code (small)
@@ -50,7 +50,7 @@ RUN mkdir -p ${WORKER_MODEL_DIR}/wan2.2-ti2v-5b && \
      find . -name "*.md" -delete || true)
 
 # Stage 2: Runtime stage (much smaller base)
-FROM nvidia/cuda:12.4-runtime-ubuntu22.04
+FROM nvidia/cuda:11.8-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKER_DIR=/app

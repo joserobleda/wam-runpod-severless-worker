@@ -1,6 +1,6 @@
 # Official Wan 2.2 TI2V-5B requirements
 # Based on https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B
-# Requires: torch >= 2.4.0 (installed in Dockerfile as 2.4.1+cu124)
+# Requires: torch >= 2.4.0 (installed in Dockerfile as 2.4.1+cu118)
 
 runpod==1.4.2
 
