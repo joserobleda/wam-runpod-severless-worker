@@ -22,14 +22,13 @@ RUN apt-get update && \
 ENV PATH=/usr/local/cuda/bin:$PATH
 ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
-# Install git-lfs
+# Install git-lfs and create directories
 RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
     apt-get update && \
     apt-get install -y git-lfs && \
-    git lfs install
+    git lfs install && \
+    mkdir -p ${WORKER_DIR} ${WORKER_MODEL_DIR}
 
-# Create directories
-RUN mkdir -p ${WORKER_DIR} ${WORKER_MODEL_DIR}
 WORKDIR ${WORKER_DIR}
 
 # Install Python dependencies in builder stage
@@ -38,11 +37,7 @@ COPY builder/requirements.txt ${WORKER_DIR}/requirements.txt
 # Install PyTorch >= 2.4.0 as required by Wan 2.2 (CUDA 11.8 compatible)
 RUN pip install --no-cache-dir packaging wheel setuptools && \
     pip install --no-cache-dir torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu118 && \
-    pip install --no-cache-dir -r ${WORKER_DIR}/requirements.txt && \
-    echo "=== Python package locations ===" && \
-    ls -la /usr/local/lib/ && \
-    find /usr/local/lib -name "*packages*" -type d && \
-    echo "=== End package locations ==="
+    pip install --no-cache-dir -r ${WORKER_DIR}/requirements.txt
 
 # Download Wan 2.2 code (small)
 RUN git clone --depth=1 https://github.com/Wan-Video/Wan2.2.git ${WORKER_DIR}/wan2.2_code && \
@@ -88,13 +83,10 @@ RUN apt-get update && \
 ENV PATH=/usr/local/cuda/bin:$PATH
 ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
-# Create non-root user
+# Create non-root user and directories
 RUN adduser --disabled-password --gecos '' --shell /bin/bash user && \
-    mkdir -p ${WORKER_DIR} && \
+    mkdir -p ${WORKER_DIR} /usr/local/lib/python3.10 && \
     chown -R user:user ${WORKER_DIR}
-
-# Create Python directories and copy environment from builder
-RUN mkdir -p /usr/local/lib/python3.10
 
 # Copy Python packages and binaries (copy entire /usr/local to ensure we get everything)
 COPY --from=builder /usr/local /usr/local
@@ -122,4 +114,4 @@ ENV TORCH_HOME=/home/user/.cache/torch
 ENV TRITON_CACHE_DIR=/home/user/.triton
 
 WORKDIR ${WORKER_DIR}
-CMD ${WORKER_DIR}/startup.sh 
+CMD ["/app/startup.sh"] 
