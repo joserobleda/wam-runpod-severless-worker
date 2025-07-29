@@ -1,0 +1,44 @@
+# Required Python packages for Wan 2.2 TI2V-5B Video Generation
+# Recommended to lock the version number to avoid unexpected changes.
+
+runpod==1.4.2
+
+# PyTorch ecosystem - compatible versions (ensure torch >= 2.4.0 as per Wan 2.2 requirements)
+torch==2.5.1
+torchaudio==2.5.1
+torchvision==0.20.1
+
+# Video generation and diffusion models
+diffusers==0.31.0
+transformers==4.46.2
+accelerate==0.34.2
+safetensors==0.4.5
+
+# Video processing and encoding
+opencv-python==4.10.0.84
+imageio==2.36.0
+imageio-ffmpeg==0.5.1
+pillow==10.4.0
+
+# Numerical computing
+numpy==1.26.4
+scipy==1.14.1
+
+# Model utilities and tokenization
+tokenizers==0.20.3
+sentencepiece==0.2.0
+
+# Flash attention for memory efficiency (if available)
+flash-attn==2.6.3
+
+# Memory management and optimization
+xformers==0.0.29
+
+# S3/R2 upload support
+boto3>=1.26.0
+botocore>=1.29.0
+
+# Additional utilities
+regex==2024.9.11
+requests==2.32.3
+tqdm==4.66.5 
