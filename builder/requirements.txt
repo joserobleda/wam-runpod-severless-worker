@@ -1,7 +1,6 @@
 # Official Wan 2.2 TI2V-5B requirements
 # Based on https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B
 # Requires: torch >= 2.4.0 (installed in Dockerfile as 2.4.1+cu118)
-
 runpod==1.4.2
 
 # Wan 2.2 official dependencies
@@ -38,4 +37,15 @@ botocore>=1.29.0
 # Additional utilities
 regex==2023.12.25
 requests==2.31.0
-tqdm==4.66.1 
+tqdm==4.66.1
+
+# MISSING CRITICAL DEPENDENCIES - ADD THESE:
+easydict>=1.9
+einops>=0.7.0
+decord>=0.6.0
+av>=10.0.0
+timm>=0.9.0
+ftfy>=6.1.0
+
+# Optional but recommended for Wan 2.2
+packaging>=21.0
