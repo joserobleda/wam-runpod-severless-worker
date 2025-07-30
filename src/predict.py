@@ -50,7 +50,6 @@ class SimplifiedWanPredictor:
                 vae=vae,  # Pass the VAE explicitly
                 torch_dtype=self.dtype,
                 trust_remote_code=True,
-                low_cpu_mem_usage=False,        # Consistency with VAE loading
                 ignore_mismatched_sizes=True    # Handle any pipeline mismatches
             )
             
