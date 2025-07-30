@@ -1,26 +1,9 @@
-# Base dependencies
 runpod
-torch
+torch>=2.4.0
 diffusers
 transformers
 accelerate
 boto3
 loguru
-
-# Simplified requirements for Diffusers approach
-torch>=2.4.0
-diffusers>=0.34.0
-transformers>=4.44.0
-accelerate>=0.33.0
-safetensors>=0.4.4
-Pillow>=10.4.0
-numpy>=1.26.0
-runpod>=1.4.2
-
-# Video processing essentials
-imageio>=2.35.0
-imageio-ffmpeg>=0.5.1
-opencv-python-headless>=4.10.0
-
-# Text processing for WanPipeline
-ftfy>=6.1.1
+numpy
+Pillow
