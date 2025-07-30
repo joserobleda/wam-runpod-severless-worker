@@ -19,304 +19,82 @@ from rp_schema import INPUT_SCHEMA
 # direct S3 upload
 import boto3
 from botocore.exceptions import ClientError
+from predict import Predictor
 
+# Initialize the model when the worker starts.
+# This will run the setup() method and prepare the pipeline.
+model = Predictor()
+model.setup()
 
-# Model params
-# model_dir = os.getenv("WORKER_MODEL_DIR", "/app/model")
-
-
-def upload_video(video_path: str, key: str):
-    """Uploads video to Cloudflare R2 bucket if available, otherwise returns base64 encoded video."""
-    
-    try:
-        # Read video file
-        with open(video_path, 'rb') as f:
-            video_bytes = f.read()
-            
-        print(f"Video file size: {len(video_bytes) / 1024 / 1024:.2f} MB")
-        
-        # Upload to Cloudflare R2 (S3-compatible) - Direct upload
-        if os.environ.get('BUCKET_ENDPOINT_URL', False):
-            try:
-                # Parse endpoint and bucket from URL
-                endpoint_url = os.environ.get('BUCKET_ENDPOINT_URL')
-                
-                # If the URL contains a bucket name, extract it
-                if '/' in endpoint_url.split('://', 1)[1]:
-                    # URL format: https://account-id.r2.cloudflarestorage.com/bucket-name
-                    base_url, bucket_name = endpoint_url.rsplit('/', 1)
-                    actual_endpoint = base_url
-                else:
-                    # URL format: https://account-id.r2.cloudflarestorage.com
-                    actual_endpoint = endpoint_url
-                    bucket_name = os.environ.get('BUCKET_NAME', 'wam-videos')
-                
-                # Create S3 client for direct upload
-                s3_client = boto3.client(
-                    's3',
-                    endpoint_url=actual_endpoint,
-                    aws_access_key_id=os.environ.get('BUCKET_ACCESS_KEY_ID'),
-                    aws_secret_access_key=os.environ.get('BUCKET_SECRET_ACCESS_KEY'),
-                    region_name='auto'  # Cloudflare R2 uses 'auto' as region
-                )
-                
-                # Upload directly to root of bucket
-                s3_client.put_object(
-                    Bucket=bucket_name,
-                    Key=key,  # File will go directly to root with this key
-                    Body=video_bytes,
-                    ContentType='video/mp4'
-                )
-                
-                # Return the public URL
-                public_url = f"{actual_endpoint}/{bucket_name}/{key}"
-                print(f"✓ Video uploaded to R2: {public_url}")
-                return public_url
-                
-            except Exception as e:
-                print(f"Direct S3 upload failed: {e}")
-                print("Falling back to RunPod upload function...")
-                # Fallback to original RunPod function
-                return upload_in_memory_object(
-                    key,
-                    video_bytes,
-                    bucket_creds = {
-                        "endpointUrl": os.environ.get('BUCKET_ENDPOINT_URL', None),
-                        "accessId": os.environ.get('BUCKET_ACCESS_KEY_ID', None),
-                        "accessSecret": os.environ.get('BUCKET_SECRET_ACCESS_KEY', None)
-                    }
-                )
-        
-        # Base64 encode for direct return (fallback)
-        print("⚠ No R2 credentials found, returning base64 encoded video")
-        return base64.b64encode(video_bytes).decode('utf-8')
-        
-    except Exception as e:
-        print(f"Error reading/uploading video file: {e}")
-        raise
-
-def download_image(image_url: str, job_id: str) -> Optional[str]:
-    """Download image from URL and return local path"""
-    if not image_url:
-        return None
-        
-    try:
-        print(f"Downloading image from: {image_url}")
-        downloaded_files = rp_download.download_files_from_urls(job_id, [image_url])
-        if downloaded_files and len(downloaded_files) > 0:
-            image_path = downloaded_files[0]
-            print(f"✓ Image downloaded to: {image_path}")
-            return image_path
-        else:
-            print("⚠ No files downloaded")
-            return None
-    except Exception as e:
-        print(f"Error downloading image: {e}")
+def upload_to_r2(file_path, job_id):
+    """Uploads a file to a Cloudflare R2 bucket."""
+    if not os.environ.get('BUCKET_ENDPOINT_URL'):
+        print("⚠ R2 environment variables not set. Skipping upload.")
         return None
 
-def run(job):
-    """Main job processing function"""
     try:
-        job_input = job['input']
-        job_id = job['id']
-        print(f"Processing job {job_id} with input: {job_input}")
+        s3_client = boto3.client(
+            's3',
+            endpoint_url=os.environ.get('BUCKET_ENDPOINT_URL'),
+            aws_access_key_id=os.environ.get('BUCKET_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.environ.get('BUCKET_SECRET_ACCESS_KEY'),
+            region_name='auto'
+        )
 
-        # Input validation
-        validated_input = validate(job_input, INPUT_SCHEMA)
+        bucket_name = os.environ.get('BUCKET_NAME')
+        file_key = f"{job_id}.mp4"
 
-        if 'errors' in validated_input:
-            print(f"Validation errors: {validated_input['errors']}")
-            return {"error": validated_input['errors']}
-        validated_input = validated_input['validated_input']
+        s3_client.upload_file(file_path, bucket_name, file_key)
 
-        # Extract parameters
-        prompt = validated_input['prompt']
-        image_url = validated_input.get('image')
-        size = validated_input.get('size', '1280*704')
-        num_frames = validated_input.get('num_frames', 121)
-        guidance_scale = validated_input.get('guidance_scale', 5.0)
-        num_inference_steps = validated_input.get('num_inference_steps', 50)
-        seed = validated_input.get('seed')
-        fps = validated_input.get('fps', 24)
-        negative_prompt = validated_input.get('negative_prompt')
-        use_prompt_extend = validated_input.get('use_prompt_extend', False)
-
-        print(f"Generation parameters:")
-        print(f"  - Prompt: '{prompt[:100]}...'")
-        print(f"  - Image URL: {image_url}")
-        print(f"  - Size: {size}")
-        print(f"  - Frames: {num_frames}")
-        print(f"  - Steps: {num_inference_steps}")
-        print(f"  - Guidance: {guidance_scale}")
-        print(f"  - Seed: {seed}")
-        print(f"  - FPS: {fps}")
-
-        # Download input image if provided
-        image_path = None
-        if image_url:
-            image_path = download_image(image_url, job_id)
-            if not image_path:
-                return {"error": "Failed to download input image"}
-
-        # Generate video
-        print("Starting video generation...")
-        try:
-            video_path = predict.predict(
-                prompt=prompt,
-                image_path=image_path,
-                size=size,
-                num_frames=num_frames,
-                guidance_scale=guidance_scale,
-                num_inference_steps=num_inference_steps,
-                seed=seed,
-                fps=fps,
-                negative_prompt=negative_prompt,
-                use_prompt_extend=use_prompt_extend
-            )
-            
-            if not video_path or not os.path.exists(video_path):
-                return {"error": "Video generation failed - no output file created"}
-                
-            print(f"✓ Video generated successfully: {video_path}")
-            
-        except Exception as e:
-            print(f"Video generation failed: {e}")
-            import traceback
-            traceback.print_exc()
-            return {"error": f"Video generation failed: {str(e)}"}
-
-        # Upload video to R2
-        try:
-            video_filename = f"{job_id}.mp4"
-            video_url = upload_video(video_path, video_filename)
-            
-            # Get video metadata
-            video_size_mb = os.path.getsize(video_path) / 1024 / 1024
-            
-            job_output = {
-                "video_url": video_url,
-                "video_size_mb": round(video_size_mb, 2),
-                "parameters": {
-                    "prompt": prompt,
-                    "size": size,
-                    "num_frames": num_frames,
-                    "guidance_scale": guidance_scale,
-                    "num_inference_steps": num_inference_steps,
-                    "seed": seed,
-                    "fps": fps,
-                    "negative_prompt": negative_prompt,
-                    "use_prompt_extend": use_prompt_extend
-                }
-            }
-            
-            print(f"✓ Job completed successfully: {video_filename} ({video_size_mb:.2f} MB)")
-            
-        except Exception as e:
-            print(f"Video upload failed: {e}")
-            return {"error": f"Video upload failed: {str(e)}"}
-
-        # Clean up temporary files
-        try:
-            # Remove downloaded input files
-            rp_cleanup.clean(['input_objects'])
-            
-            # Remove generated video file
-            if video_path and os.path.exists(video_path):
-                os.remove(video_path)
-                print("✓ Temporary files cleaned up")
-                
-        except Exception as cleanup_error:
-            print(f"Warning: Cleanup failed: {cleanup_error}")
-
-        # ===== ENHANCED MEMORY CLEANUP =====
-        # Force memory cleanup to prevent accumulation between jobs
-        try:
-            import gc
-            import torch
-            
-            # Clear any remaining variables
-            locals_to_clean = ['video_path', 'image_path', 'video_url']
-            for var_name in locals_to_clean:
-                if var_name in locals() and locals()[var_name] is not None:
-                    del locals()[var_name]
-            
-            # PyTorch GPU memory cleanup
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                torch.cuda.synchronize()  # Wait for GPU operations to complete
-                
-                # Get memory stats for monitoring
-                memory_allocated = torch.cuda.memory_allocated() / 1024**3  # GB
-                memory_cached = torch.cuda.memory_reserved() / 1024**3      # GB
-                print(f"Post-job GPU Memory - Allocated: {memory_allocated:.2f}GB, Cached: {memory_cached:.2f}GB")
-            
-            # Force garbage collection
-            gc.collect()
-            
-            print(f"✓ Memory cleanup completed for job {job_id}")
-            
-        except Exception as cleanup_error:
-            print(f"Warning: Post-job memory cleanup failed: {cleanup_error}")
-        # ===== END ENHANCED MEMORY CLEANUP =====
-
-        return job_output
-
+        # Construct the public URL
+        url = f"{os.environ.get('BUCKET_PUBLIC_URL')}/{file_key}"
+        print(f"✅ Successfully uploaded to R2: {url}")
+        return url
+    except ClientError as e:
+        print(f"❌ R2 Upload Failed: {e}")
+        return None
     except Exception as e:
-        print(f"Error processing job {job.get('id', 'unknown')}: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return {"error": f"Internal error: {str(e)}"}
+        print(f"❌ An unexpected error occurred during upload: {e}")
+        return None
 
+def handler(job):
+    """
+    The handler function for the RunPod serverless worker.
+    """
+    job_input = job['input']
 
-if __name__ == "__main__":
-    # Initialize the predictor (diffusers will auto-download)
-    print("🚀 Starting Wan 2.2 TI2V-5B RunPod Worker...")
-    print("🔧 Python version:", sys.version)
-    print("🔧 PyTorch version:", torch.__version__ if 'torch' in sys.modules else 'Not loaded')
-    print("🔧 Available CUDA devices:", torch.cuda.device_count() if 'torch' in sys.modules and torch.cuda.is_available() else 'None')
-    
-    try:
-        print("📥 Initializing Wan 2.2 TI2V-5B predictor with Diffusers...")
-        predict.setup()
-        print("✅ Predictor initialized successfully")
-    except Exception as e:
-        print(f"❌ CRITICAL ERROR: Predictor initialization failed!")
-        print(f"❌ Error type: {type(e).__name__}")
-        print(f"❌ Error message: {str(e)}")
-        print("❌ Full traceback:")
-        import traceback
-        traceback.print_exc()
+    # Extract parameters from the job input with defaults
+    prompt = job_input.get('prompt', "a photo of an astronaut riding a horse on mars")
+    negative_prompt = job_input.get('negative_prompt', "blurry, low quality, static, poorly drawn, deformed")
+    size = job_input.get('size', '512x512')
+    num_frames = job_input.get('num_frames', 24)
+    num_inference_steps = job_input.get('num_inference_steps', 25)
+    guidance_scale = job_input.get('guidance_scale', 8.5)
+    fps = job_input.get('fps', 12)
+    seed = job_input.get('seed', None)
+
+    # Generate the video
+    video_path = model.predict(
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        size=size,
+        num_frames=num_frames,
+        num_inference_steps=num_inference_steps,
+        guidance_scale=guidance_scale,
+        fps=fps,
+        seed=seed,
+    )
+
+    # Upload the generated video to R2
+    video_url = upload_to_r2(video_path, job['id'])
+
+    # Clean up the temporary file
+    rp_cleanup.clean([os.path.dirname(video_path)])
+
+    if not video_url:
+        return {"error": "Video generation succeeded, but upload failed."}
         
-        # Try to give helpful debugging info
-        print("\n🔍 Debug Information:")
-        try:
-            import torch
-            print(f"   - CUDA available: {torch.cuda.is_available()}")
-            if torch.cuda.is_available():
-                print(f"   - CUDA device count: {torch.cuda.device_count()}")
-                print(f"   - Current device: {torch.cuda.current_device()}")
-                memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
-                print(f"   - GPU memory: {memory_gb:.1f}GB")
-        except:
-            print("   - Could not get CUDA info")
-            
-        try:
-            from diffusers import DiffusionPipeline
-            print("   - Diffusers imported successfully")
-        except Exception as import_err:
-            print(f"   - Diffusers import failed: {import_err}")
-            
-        print(f"\n💡 This might be because:")
-        print(f"   1. Wan2.2-TI2V-5B doesn't actually support diffusers yet")
-        print(f"   2. Missing dependencies or version mismatch") 
-        print(f"   3. Network/download issues")
-        print(f"   4. Authentication required for model access")
-        
-        # Don't exit immediately, wait a bit for logs to flush
-        import time
-        time.sleep(5)
-        exit(1)
+    return {"video_url": video_url}
 
-    # Start RunPod serverless
-    print("🎬 Starting RunPod serverless worker...")
-    runpod.serverless.start({"handler": run}) 
+# Start the serverless worker
+runpod.serverless.start({"handler": handler}) 
