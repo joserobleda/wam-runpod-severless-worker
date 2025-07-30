@@ -144,22 +144,30 @@ class SimplifiedWanPredictor:
             
             logger.info("Starting generation...")
             
-            # Generate video with FULL parameter support
-            output = self.pipe(
-                prompt=prompt,
-                image=image,  # None for T2V, loaded image for I2V
-                negative_prompt=negative_prompt,
-                height=height,
-                width=width,
-                num_frames=num_frames,
-                guidance_scale=guidance_scale,
-                num_inference_steps=num_inference_steps,
-                # Additional parameters supported by Diffusers:
-                generator=torch.Generator(device=self.device).manual_seed(seed) if seed else None,
-                # eta=0.0,  # DDIM eta parameter
-                # callback=None,  # Optional callback function
-                # callback_steps=1,  # How often to call callback
-            ).frames[0]
+            # Build pipeline parameters
+            pipeline_params = {
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "height": height,
+                "width": width,
+                "num_frames": num_frames,
+                "guidance_scale": guidance_scale,
+                "num_inference_steps": num_inference_steps,
+            }
+            
+            # Add image only for Image-to-Video (when image is provided)
+            if image is not None:
+                pipeline_params["image"] = image
+                logger.info("Using I2V mode with provided image")
+            else:
+                logger.info("Using T2V mode (text-to-video)")
+                
+            # Add generator for seed if provided
+            if seed is not None:
+                pipeline_params["generator"] = torch.Generator(device=self.device).manual_seed(seed)
+            
+            # Generate video with dynamic parameters
+            output = self.pipe(**pipeline_params).frames[0]
             
             # Export to video file
             output_path = f"/tmp/video_generation/wan22_diffusers_{os.getpid()}_{seed or 'random'}.mp4"
