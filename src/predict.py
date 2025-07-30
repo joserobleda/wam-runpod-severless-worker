@@ -8,6 +8,7 @@ import torch
 import numpy as np
 from PIL import Image
 from diffusers import WanPipeline
+from diffusers.models.autoencoders.autoencoder_kl_wan import AutoencoderKLWan
 from diffusers.utils import export_to_video
 from loguru import logger
 import tempfile
@@ -23,23 +24,34 @@ class Predictor:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
 
-        # Use the official diffusers-compatible model ID
         model_id = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
 
-        # --- Step 1: Load the Main Pipeline ---
-        # This version of the model has a stable VAE, so no patching is needed.
-        logger.info(f"📦 Loading WanPipeline from {model_id}...")
+        # --- Step 1: Load VAE with mismatch fix ---
+        # The model's VAE has a known weights vs. config mismatch.
+        # We load it separately with `ignore_mismatched_sizes=True` as the error log suggests.
+        logger.info(f"📦 Loading VAE from {model_id} with mismatch fix...")
+        vae = AutoencoderKLWan.from_pretrained(
+            model_id,
+            subfolder="vae",
+            torch_dtype=self.dtype,
+            low_cpu_mem_usage=False,  # Required for this fix
+            ignore_mismatched_sizes=True,
+            trust_remote_code=True,
+        )
+        logger.info("✅ VAE loaded successfully.")
+
+        # --- Step 2: Load the Main Pipeline with the Corrected VAE ---
+        logger.info(f"📦 Loading WanPipeline from {model_id} with corrected VAE...")
         self.pipe = WanPipeline.from_pretrained(
             model_id,
+            vae=vae,
             torch_dtype=self.dtype,
             trust_remote_code=True
         )
         self.pipe.to(self.device)
         logger.info("✅ Pipeline loaded to device.")
 
-        # --- Step 2: Compile for Performance ---
-        # This is a critical step to prevent CPU bottlenecks and ensure fast inference.
-        # The first run after setup will be slow as the model compiles.
+        # --- Step 3: Compile for Performance ---
         logger.info("🔧 Compiling model with torch.compile (first run will be slow)...")
         self.pipe.unet = torch.compile(self.pipe.unet, mode="max-autotune", fullgraph=True)
         self.pipe.vae.decode = torch.compile(self.pipe.vae.decode, mode="max-autotune", fullgraph=True)
