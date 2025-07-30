@@ -53,7 +53,7 @@ class Predictor:
 
         # --- Step 3: Compile for Performance ---
         logger.info("🔧 Compiling model with torch.compile (first run will be slow)...")
-        self.pipe.unet = torch.compile(self.pipe.unet, mode="max-autotune", fullgraph=True)
+        self.pipe.transformer = torch.compile(self.pipe.transformer, mode="max-autotune", fullgraph=True)
         self.pipe.vae.decode = torch.compile(self.pipe.vae.decode, mode="max-autotune", fullgraph=True)
         logger.info("✅ Model compiled successfully.")
         
