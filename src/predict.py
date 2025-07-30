@@ -22,7 +22,7 @@ class SimplifiedWanPredictor:
         self.model_dir = model_dir
         self.pipe = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+        self.dtype = torch.float32  # Force float32 for numerical stability
     
     def setup(self):
         """Initialize the Diffusers pipeline exactly like official documentation"""
