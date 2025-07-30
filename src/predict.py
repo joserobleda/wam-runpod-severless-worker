@@ -64,12 +64,17 @@ class SimplifiedWanPredictor:
                 low_cpu_mem_usage=True,
             )
             
-            # Move the entire pipeline to the GPU for maximum performance.
-            logger.info(f"🔧 Moving pipeline to {self.device}...")
+            # Move the entire pipeline to the GPU
+            logger.info(f"🔧 Moving pipeline to cuda...")
             self.pipe.to(self.device)
-            
-            logger.info(f"✅ WanPipeline loaded successfully with dtype {self.dtype}")
-            logger.info(f"✅ Pipeline moved to {self.device}")
+            logger.info(f"✅ Pipeline moved to cuda")
+
+            # Optimize the pipeline with torch.compile for maximum inference speed
+            logger.info("🔧 Compiling UNet and VAE for optimized performance (first run will be slow)...")
+            self.pipe.unet = torch.compile(self.pipe.unet, mode="max-autotune", fullgraph=True)
+            self.pipe.vae.decode = torch.compile(self.pipe.vae.decode, mode="max-autotune", fullgraph=True)
+            logger.info("✅ UNet and VAE compiled successfully.")
+
             logger.info("🚀 Ready for video generation!")
             
         except Exception as e:
