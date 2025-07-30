@@ -1,9 +1,19 @@
-runpod
+# Base Serverless and ML Dependencies
+runpod>=1.4.2
 torch>=2.4.0
-diffusers
-transformers
-accelerate
+diffusers>=0.34.0
+transformers>=4.44.0
+accelerate>=0.33.0
+safetensors>=0.4.4
 boto3
 loguru
-numpy
-Pillow
+
+# Image/Video Processing Essentials
+Pillow>=10.4.0
+numpy>=1.26.0
+imageio>=2.35.0
+imageio-ffmpeg>=0.5.1
+opencv-python-headless>=4.10.0
+
+# Text Processing for WanPipeline
+ftfy
