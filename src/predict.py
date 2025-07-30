@@ -57,7 +57,7 @@ class Predictor:
         # --- Step 3: Compile for Performance ---
         logger.info("🔧 Compiling model with torch.compile (first run will be slow)...")
         self.pipe.transformer = torch.compile(self.pipe.transformer, mode="max-autotune", fullgraph=True)
-        self.pipe.vae.decode = torch.compile(self.pipe.vae.decode, mode="max-autotune", fullgraph=True)
+        # self.pipe.vae.decode = torch.compile(self.pipe.vae.decode, mode="max-autotune", fullgraph=True) # VAE decode is not compatible with torch.compile
         logger.info("✅ Model compiled successfully.")
         
         logger.info("🚀 Predictor is ready.")
