@@ -5,7 +5,7 @@ Based on official Hugging Face documentation
 
 import torch
 import numpy as np
-from diffusers import WanPipeline, AutoencoderKLWan, WanTransformer3DModel, UniPCMultistepScheduler
+from diffusers import WanPipeline, WanTransformer3DModel, UniPCMultistepScheduler
 from diffusers.utils import export_to_video, load_image
 from typing import Optional
 import os
@@ -31,26 +31,15 @@ class SimplifiedWanPredictor:
         model_id = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
         
         try:
-            logger.info(f"🔄 Loading VAE and WanPipeline from {model_id}...")
+            logger.info(f"🔄 Loading WanPipeline from {model_id}...")
             
-            # Load VAE explicitly with float32 (as per official docs)
-            logger.info("📦 Loading AutoencoderKLWan VAE...")
-            vae = AutoencoderKLWan.from_pretrained(
-                model_id, 
-                subfolder="vae", 
-                torch_dtype=torch.float32,  # VAE needs float32 for stability
-                low_cpu_mem_usage=False,    # Fix for tensor shape mismatch
-                ignore_mismatched_sizes=True  # Allow size mismatches
-            )
-            
-            # Load WanPipeline with explicit VAE
-            logger.info("📦 Loading WanPipeline...")
+            # Load WanPipeline (let it handle VAE with correct architecture)
+            logger.info("📦 Loading WanPipeline with built-in VAE...")
             self.pipe = WanPipeline.from_pretrained(
                 model_id,
-                vae=vae,  # Pass the VAE explicitly
                 torch_dtype=self.dtype,
                 trust_remote_code=True,
-                ignore_mismatched_sizes=True    # Handle any pipeline mismatches
+                low_cpu_mem_usage=False,        # Prevent memory optimization issues
             )
             
             # Move to device (explicit approach as per docs)
@@ -58,8 +47,8 @@ class SimplifiedWanPredictor:
             self.pipe.to(self.device)
             
             logger.info(f"✅ WanPipeline loaded successfully with dtype {self.dtype}")
-            logger.info(f"✅ VAE loaded with torch.float32")
             logger.info(f"✅ Pipeline moved to {self.device}")
+            logger.info("🚀 Ready for video generation!")
             
         except Exception as e:
             logger.error(f"❌ Failed to load WanPipeline: {e}")
