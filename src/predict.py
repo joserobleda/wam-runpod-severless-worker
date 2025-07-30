@@ -6,6 +6,7 @@ Based on official Hugging Face documentation
 import torch
 import numpy as np
 from diffusers import WanPipeline, WanTransformer3DModel, UniPCMultistepScheduler, AutoencoderKL
+from diffusers.models.autoencoders.autoencoder_kl_wan import AutoencoderKLWan
 from diffusers.utils import export_to_video, load_image
 from typing import Optional
 import os
@@ -36,7 +37,7 @@ class SimplifiedWanPredictor:
             # Explicitly load the VAE with `ignore_mismatched_sizes` to handle
             # architecture conflicts between the checkpoint and the pipeline config.
             logger.info("📦 Loading VAE separately to handle size mismatches...")
-            vae = AutoencoderKL.from_pretrained(
+            vae = AutoencoderKLWan.from_pretrained(
                 model_id,
                 subfolder="vae",
                 torch_dtype=self.dtype,
