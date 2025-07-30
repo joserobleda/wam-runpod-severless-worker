@@ -39,7 +39,7 @@ class SimplifiedWanPredictor:
                 model_id,
                 torch_dtype=self.dtype,
                 trust_remote_code=True,
-                low_cpu_mem_usage=False,        # Prevent memory optimization issues
+                low_cpu_mem_usage=True,
             )
             
             # Move to device (explicit approach as per docs)
