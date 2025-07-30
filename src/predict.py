@@ -5,7 +5,7 @@ Based on official Hugging Face documentation
 
 import torch
 import numpy as np
-from diffusers import DiffusionPipeline
+from diffusers import WanPipeline, AutoencoderKLWan, WanTransformer3DModel, UniPCMultistepScheduler
 from diffusers.utils import export_to_video, load_image
 from typing import Optional
 import os
@@ -24,33 +24,57 @@ class SimplifiedWanPredictor:
         self.dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
     
     def setup(self):
-        """Initialize the Diffusers pipeline"""
+        """Initialize the Diffusers pipeline exactly like official documentation"""
         logger.info("🚀 Setting up Wan 2.2 TI2V-5B with Diffusers...")
         
-        # Use the official Wan 2.2 model
-        model_id = "Wan-AI/Wan2.2-TI2V-5B"
+        # Use the DIFFUSERS-COMPATIBLE version of the model
+        model_id = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
         
         try:
-            # Try to load with DiffusionPipeline (if diffusers support is available)
-            self.pipe = DiffusionPipeline.from_pretrained(
-                model_id,
-                torch_dtype=self.dtype,
-                trust_remote_code=True,  # Important for custom models
-                device_map="auto"
+            logger.info(f"🔄 Loading VAE and WanPipeline from {model_id}...")
+            
+            # Load VAE explicitly with float32 (as per official docs)
+            logger.info("📦 Loading AutoencoderKLWan VAE...")
+            vae = AutoencoderKLWan.from_pretrained(
+                model_id, 
+                subfolder="vae", 
+                torch_dtype=torch.float32  # VAE needs float32 for stability
             )
             
-            # Move to device if not using device_map="auto"
-            if not hasattr(self.pipe, '_device_map'):
-                self.pipe.to(self.device)
+            # Load WanPipeline with explicit VAE
+            logger.info("📦 Loading WanPipeline...")
+            self.pipe = WanPipeline.from_pretrained(
+                model_id,
+                vae=vae,  # Pass the VAE explicitly
+                torch_dtype=self.dtype,
+                trust_remote_code=True
+            )
             
-            logger.info(f"✓ Pipeline loaded with dtype {self.dtype}")
+            # Move to device (explicit approach as per docs)
+            logger.info(f"🔧 Moving pipeline to {self.device}...")
+            self.pipe.to(self.device)
+            
+            logger.info(f"✅ WanPipeline loaded successfully with dtype {self.dtype}")
+            logger.info(f"✅ VAE loaded with torch.float32")
+            logger.info(f"✅ Pipeline moved to {self.device}")
             
         except Exception as e:
-            logger.error(f"Failed to load pipeline with diffusers: {e}")
-            logger.info("Note: Wan 2.2 diffusers integration may not be available yet")
-            logger.info("Check the model page: https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B")
-            logger.info("You may need to wait for official diffusers support or use the subprocess approach")
-            raise RuntimeError(f"Diffusers pipeline loading failed: {e}. Wan 2.2 may not support diffusers yet.")
+            logger.error(f"❌ Failed to load WanPipeline: {e}")
+            logger.error(f"❌ Error type: {type(e).__name__}")
+            
+            # Check if it's a specific component issue
+            error_msg = str(e).lower()
+            if 'autoencoder' in error_msg or 'vae' in error_msg:
+                logger.info("💡 Issue with VAE loading - this is critical for Wan2.2")
+            elif 'wantransformer3d' in error_msg:
+                logger.info("💡 Issue with transformer model loading")
+            elif 'not found' in error_msg:
+                logger.info("💡 Model components not found - check model ID")
+            
+            logger.info("🔗 Check the model page: https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B-Diffusers")
+            logger.info("🔗 Official Wan2.2 repo: https://github.com/Wan-Video/Wan2.2")
+            
+            raise RuntimeError(f"WanPipeline loading failed: {e}. Check model compatibility.")
     
     def predict(self, 
                 prompt: str,
@@ -105,9 +129,9 @@ class SimplifiedWanPredictor:
                 # Default to 720p landscape
                 width, height = 1280, 704
             
-            # Default negative prompt (official Wan 2.2 recommendation)
+            # Default negative prompt (English version for better compatibility)
             if negative_prompt is None:
-                negative_prompt = "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
+                negative_prompt = "blurry, low quality, static, poorly drawn, deformed, disfigured, extra limbs, fused fingers, malformed hands, ugly, distorted, overexposed, underexposed, saturated colors, artifacts, compression artifacts, pixelated, grainy, watermark, signature, text, subtitles, still image, frozen, cluttered background, multiple people, crowd, walking backwards, unnatural movement"
             
             # Load image if provided (Image-to-Video)
             image = None

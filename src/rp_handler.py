@@ -1,5 +1,6 @@
 import io
 import os
+import sys
 import argparse
 import base64
 import tempfile
@@ -268,17 +269,53 @@ def run(job):
 
 if __name__ == "__main__":
     # Initialize the predictor (diffusers will auto-download)
-    print("Initializing Wan 2.2 TI2V-5B predictor with Diffusers...")
+    print("🚀 Starting Wan 2.2 TI2V-5B RunPod Worker...")
+    print("🔧 Python version:", sys.version)
+    print("🔧 PyTorch version:", torch.__version__ if 'torch' in sys.modules else 'Not loaded')
+    print("🔧 Available CUDA devices:", torch.cuda.device_count() if 'torch' in sys.modules and torch.cuda.is_available() else 'None')
+    
     try:
+        print("📥 Initializing Wan 2.2 TI2V-5B predictor with Diffusers...")
         predict.setup()
-        print("✓ Predictor initialized successfully")
+        print("✅ Predictor initialized successfully")
     except Exception as e:
-        print(f"❌ Predictor initialization failed: {e}")
-        print("This may happen if Wan 2.2 doesn't support diffusers yet")
+        print(f"❌ CRITICAL ERROR: Predictor initialization failed!")
+        print(f"❌ Error type: {type(e).__name__}")
+        print(f"❌ Error message: {str(e)}")
+        print("❌ Full traceback:")
         import traceback
         traceback.print_exc()
+        
+        # Try to give helpful debugging info
+        print("\n🔍 Debug Information:")
+        try:
+            import torch
+            print(f"   - CUDA available: {torch.cuda.is_available()}")
+            if torch.cuda.is_available():
+                print(f"   - CUDA device count: {torch.cuda.device_count()}")
+                print(f"   - Current device: {torch.cuda.current_device()}")
+                memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                print(f"   - GPU memory: {memory_gb:.1f}GB")
+        except:
+            print("   - Could not get CUDA info")
+            
+        try:
+            from diffusers import DiffusionPipeline
+            print("   - Diffusers imported successfully")
+        except Exception as import_err:
+            print(f"   - Diffusers import failed: {import_err}")
+            
+        print(f"\n💡 This might be because:")
+        print(f"   1. Wan2.2-TI2V-5B doesn't actually support diffusers yet")
+        print(f"   2. Missing dependencies or version mismatch") 
+        print(f"   3. Network/download issues")
+        print(f"   4. Authentication required for model access")
+        
+        # Don't exit immediately, wait a bit for logs to flush
+        import time
+        time.sleep(5)
         exit(1)
 
     # Start RunPod serverless
-    print("Starting RunPod serverless worker...")
+    print("🎬 Starting RunPod serverless worker...")
     runpod.serverless.start({"handler": run}) 
