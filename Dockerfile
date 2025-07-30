@@ -3,10 +3,13 @@ FROM pytorch/pytorch:2.7.0-cuda11.8-cudnn9-runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKER_DIR=/app
+ENV TORCHINDUCTOR_CACHE_DIR=/persistent_volume/torch_cache
 
 # Install minimal system dependencies
 RUN apt-get update && \
-    apt-get install -y ffmpeg && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    ffmpeg && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

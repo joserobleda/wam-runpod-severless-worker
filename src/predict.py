@@ -14,6 +14,9 @@ from loguru import logger
 import tempfile
 import random
 
+# Set matmul precision for better performance on Ampere GPUs
+torch.set_float32_matmul_precision('high')
+
 class Predictor:
     """
     A simplified and robust predictor for the Wan2.2-TI2V-5B-Diffusers model.
