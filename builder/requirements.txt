@@ -1,3 +1,12 @@
+# Base dependencies
+runpod
+torch
+diffusers
+transformers
+accelerate
+boto3
+loguru
+
 # Simplified requirements for Diffusers approach
 torch>=2.4.0
 diffusers>=0.34.0
