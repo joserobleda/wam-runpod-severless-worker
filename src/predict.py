@@ -5,7 +5,7 @@ Based on official Hugging Face documentation
 
 import torch
 import numpy as np
-from diffusers import WanPipeline, WanTransformer3DModel, UniPCMultistepScheduler
+from diffusers import WanPipeline, WanTransformer3DModel, UniPCMultistepScheduler, AutoencoderKL
 from diffusers.utils import export_to_video, load_image
 from typing import Optional
 import os
@@ -33,14 +33,27 @@ class SimplifiedWanPredictor:
         try:
             logger.info(f"🔄 Loading WanPipeline from {model_id}...")
             
-            # Load WanPipeline (let it handle VAE with correct architecture)
-            logger.info("📦 Loading WanPipeline with built-in VAE...")
+            # Explicitly load the VAE with `ignore_mismatched_sizes` to handle
+            # architecture conflicts between the checkpoint and the pipeline config.
+            logger.info("📦 Loading VAE separately to handle size mismatches...")
+            vae = AutoencoderKL.from_pretrained(
+                model_id,
+                subfolder="vae",
+                torch_dtype=self.dtype,
+                low_cpu_mem_usage=True,
+                trust_remote_code=True,
+                ignore_mismatched_sizes=True,
+            )
+            logger.info("✅ VAE loaded successfully.")
+
+            # Load WanPipeline, providing the custom-loaded VAE
+            logger.info("📦 Loading WanPipeline with the custom VAE...")
             self.pipe = WanPipeline.from_pretrained(
                 model_id,
+                vae=vae,
                 torch_dtype=self.dtype,
                 trust_remote_code=True,
                 low_cpu_mem_usage=True,
-                ignore_mismatched_sizes=True,  # Handle VAE size conflicts
             )
             
             # Move to device (explicit approach as per docs)
