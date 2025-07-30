@@ -22,7 +22,7 @@ class SimplifiedWanPredictor:
         self.model_dir = model_dir
         self.pipe = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.dtype = torch.float32  # Force float32 for numerical stability
+        self.dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
     
     def setup(self):
         """Initialize the Diffusers pipeline exactly like official documentation"""
@@ -34,16 +34,12 @@ class SimplifiedWanPredictor:
         try:
             logger.info(f"🔄 Loading WanPipeline from {model_id}...")
             
-            # Explicitly load the VAE with `ignore_mismatched_sizes` to handle
-            # architecture conflicts between the checkpoint and the pipeline config.
-            logger.info("📦 Loading VAE separately to handle size mismatches...")
-            vae = AutoencoderKLWan.from_pretrained(
-                model_id,
-                subfolder="vae",
+            # Load a standard, stable VAE to ensure compatibility and prevent black frames.
+            # This is a common fix for models with problematic VAEs.
+            logger.info("📦 Loading stable VAE from stabilityai/sd-vae-ft-mse...")
+            vae = AutoencoderKL.from_pretrained(
+                "stabilityai/sd-vae-ft-mse",
                 torch_dtype=self.dtype,
-                low_cpu_mem_usage=False,  # Load VAE fully into memory to avoid meta tensor issues
-                trust_remote_code=True,
-                ignore_mismatched_sizes=True,
             )
             logger.info("✅ VAE loaded successfully.")
 
@@ -57,12 +53,12 @@ class SimplifiedWanPredictor:
                 low_cpu_mem_usage=True,
             )
             
-            # Enable model CPU offload to save VRAM, especially when using float32
-            logger.info("🔧 Enabling model CPU offload to manage VRAM...")
-            self.pipe.enable_model_cpu_offload()
+            # Move the entire pipeline to the GPU for maximum performance.
+            logger.info(f"🔧 Moving pipeline to {self.device}...")
+            self.pipe.to(self.device)
             
             logger.info(f"✅ WanPipeline loaded successfully with dtype {self.dtype}")
-            logger.info(f"✅ Pipeline configured for CPU offloading.")
+            logger.info(f"✅ Pipeline moved to {self.device}")
             logger.info("🚀 Ready for video generation!")
             
         except Exception as e:
