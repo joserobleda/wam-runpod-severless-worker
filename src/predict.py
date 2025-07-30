@@ -44,12 +44,15 @@ class SimplifiedWanPredictor:
                 trust_remote_code=True,
             )
             
-            # Monkey-patch the VAE to make it compatible with the WanPipeline,
-            # which expects a `temperal_downsample` attribute for video models.
-            logger.info("🔧 Patching VAE with `temperal_downsample` attribute...")
+            # Monkey-patch the VAE to make it compatible with the WanPipeline.
+            # 1. The pipeline expects a `temperal_downsample` attribute for video models.
+            # 2. It also expects `latents_mean` and `latents_std` in the config for normalization.
+            logger.info("🔧 Patching VAE with required attributes (`temperal_downsample`, `latents_mean`, `latents_std`)...")
             vae.temperal_downsample = [1, 1]
+            vae.config.latents_mean = [0.0] * 4  # Neutral mean for 4 latent channels
+            vae.config.latents_std = [1.0] * 4   # Neutral std dev for 4 latent channels
 
-            logger.info(f"✅ VAE loaded successfully.")
+            logger.info(f"✅ VAE loaded and patched successfully.")
 
             # Load WanPipeline, providing the custom-loaded VAE
             logger.info(f"📦 Loading WanPipeline with the custom VAE...")
