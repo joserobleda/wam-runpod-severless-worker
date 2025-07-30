@@ -40,6 +40,7 @@ class SimplifiedWanPredictor:
                 torch_dtype=self.dtype,
                 trust_remote_code=True,
                 low_cpu_mem_usage=True,
+                ignore_mismatched_sizes=True,  # Handle VAE size conflicts
             )
             
             # Move to device (explicit approach as per docs)
