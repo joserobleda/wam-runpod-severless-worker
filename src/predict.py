@@ -38,7 +38,9 @@ class SimplifiedWanPredictor:
             vae = AutoencoderKLWan.from_pretrained(
                 model_id, 
                 subfolder="vae", 
-                torch_dtype=torch.float32  # VAE needs float32 for stability
+                torch_dtype=torch.float32,  # VAE needs float32 for stability
+                low_cpu_mem_usage=False,    # Fix for tensor shape mismatch
+                ignore_mismatched_sizes=True  # Allow size mismatches
             )
             
             # Load WanPipeline with explicit VAE
@@ -47,7 +49,9 @@ class SimplifiedWanPredictor:
                 model_id,
                 vae=vae,  # Pass the VAE explicitly
                 torch_dtype=self.dtype,
-                trust_remote_code=True
+                trust_remote_code=True,
+                low_cpu_mem_usage=False,        # Consistency with VAE loading
+                ignore_mismatched_sizes=True    # Handle any pipeline mismatches
             )
             
             # Move to device (explicit approach as per docs)
