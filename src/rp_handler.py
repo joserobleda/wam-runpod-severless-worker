@@ -7,6 +7,7 @@ import tempfile
 import shutil
 from pathlib import Path
 from typing import Optional
+import torch  # Added for debug logging
 # runpod utils
 import runpod
 from runpod.serverless.utils.rp_validator import validate
