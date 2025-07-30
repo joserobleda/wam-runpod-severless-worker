@@ -41,7 +41,7 @@ class SimplifiedWanPredictor:
                 model_id,
                 subfolder="vae",
                 torch_dtype=self.dtype,
-                low_cpu_mem_usage=True,
+                low_cpu_mem_usage=False,  # Load VAE fully into memory to avoid meta tensor issues
                 trust_remote_code=True,
                 ignore_mismatched_sizes=True,
             )
