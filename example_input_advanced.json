@@ -2,11 +2,12 @@
   "input": {
     "prompt": "Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage, dramatic lighting, high energy, cinematic quality",
     "size": "1280*704",
-    "num_frames": 120,
-    "guidance_scale": 7.5,
+    "num_frames": 121,
+    "guidance_scale": 5.0,
     "num_inference_steps": 50,
     "seed": 42,
     "fps": 24,
+    "negative_prompt": "blurry, low quality, static, ugly, deformed",
     "use_prompt_extend": true
   }
 } 

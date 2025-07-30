@@ -6,7 +6,6 @@
     "guidance_scale": 8.5,
     "num_inference_steps": 25,
     "fps": 24,
-    "seed": 42,
-    "use_prompt_extend": true
+    "seed": 42
   }
 } 

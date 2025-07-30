@@ -19,15 +19,15 @@ INPUT_SCHEMA = {
     "num_frames": {
         "type": int,
         "required": False,
-        "default": 120,
+        "default": 121,
         "min": 24,
         "max": 240,
-        "description": "Number of frames to generate (24fps, so 120 frames = 5 seconds)"
+        "description": "Number of frames to generate (121 = 5 seconds at 24fps)"
     },
     "guidance_scale": {
         "type": float,
         "required": False,
-        "default": 7.0,
+        "default": 5.0,
         "min": 1.0,
         "max": 20.0,
         "description": "Guidance scale for generation quality vs diversity trade-off"
@@ -46,12 +46,6 @@ INPUT_SCHEMA = {
         "default": None,
         "description": "Random seed for reproducible generation (optional)"
     },
-    "use_prompt_extend": {
-        "type": bool,
-        "required": False,
-        "default": False,
-        "description": "Whether to extend/enhance the input prompt automatically"
-    },
     "fps": {
         "type": int,
         "required": False,
@@ -59,5 +53,17 @@ INPUT_SCHEMA = {
         "min": 12,
         "max": 30,
         "description": "Frames per second for the output video"
+    },
+    "negative_prompt": {
+        "type": str,
+        "required": False,
+        "default": None,
+        "description": "What to avoid in the generation (optional, uses Wan 2.2 defaults if not provided)"
+    },
+    "use_prompt_extend": {
+        "type": bool,
+        "required": False,
+        "default": False,
+        "description": "Whether to extend short prompts with quality descriptors"
     }
 } 

@@ -20,7 +20,7 @@ from botocore.exceptions import ClientError
 
 
 # Model params
-model_dir = os.getenv("WORKER_MODEL_DIR", "/app/model")
+# model_dir = os.getenv("WORKER_MODEL_DIR", "/app/model")
 
 
 def upload_video(video_path: str, key: str):
@@ -131,11 +131,12 @@ def run(job):
         prompt = validated_input['prompt']
         image_url = validated_input.get('image')
         size = validated_input.get('size', '1280*704')
-        num_frames = validated_input.get('num_frames', 120)
-        guidance_scale = validated_input.get('guidance_scale', 7.0)
+        num_frames = validated_input.get('num_frames', 121)
+        guidance_scale = validated_input.get('guidance_scale', 5.0)
         num_inference_steps = validated_input.get('num_inference_steps', 50)
         seed = validated_input.get('seed')
         fps = validated_input.get('fps', 24)
+        negative_prompt = validated_input.get('negative_prompt')
         use_prompt_extend = validated_input.get('use_prompt_extend', False)
 
         print(f"Generation parameters:")
@@ -158,7 +159,7 @@ def run(job):
         # Generate video
         print("Starting video generation...")
         try:
-            video_path = MODEL.predict(
+            video_path = predict.predict(
                 prompt=prompt,
                 image_path=image_path,
                 size=size,
@@ -167,6 +168,7 @@ def run(job):
                 num_inference_steps=num_inference_steps,
                 seed=seed,
                 fps=fps,
+                negative_prompt=negative_prompt,
                 use_prompt_extend=use_prompt_extend
             )
             
@@ -200,6 +202,7 @@ def run(job):
                     "num_inference_steps": num_inference_steps,
                     "seed": seed,
                     "fps": fps,
+                    "negative_prompt": negative_prompt,
                     "use_prompt_extend": use_prompt_extend
                 }
             }
@@ -264,14 +267,14 @@ def run(job):
 
 
 if __name__ == "__main__":
-    # Initialize model
-    print("Initializing Wan 2.2 TI2V-5B model...")
+    # Initialize the predictor (diffusers will auto-download)
+    print("Initializing Wan 2.2 TI2V-5B predictor with Diffusers...")
     try:
-        MODEL = predict.Predictor(model_dir=model_dir)
-        MODEL.setup()
-        print("✓ Model initialized successfully")
+        predict.setup()
+        print("✓ Predictor initialized successfully")
     except Exception as e:
-        print(f"❌ Model initialization failed: {e}")
+        print(f"❌ Predictor initialization failed: {e}")
+        print("This may happen if Wan 2.2 doesn't support diffusers yet")
         import traceback
         traceback.print_exc()
         exit(1)
