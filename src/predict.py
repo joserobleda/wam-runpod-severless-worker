@@ -57,12 +57,12 @@ class SimplifiedWanPredictor:
                 low_cpu_mem_usage=True,
             )
             
-            # Move to device (explicit approach as per docs)
-            logger.info(f"🔧 Moving pipeline to {self.device}...")
-            self.pipe.to(self.device)
+            # Enable model CPU offload to save VRAM, especially when using float32
+            logger.info("🔧 Enabling model CPU offload to manage VRAM...")
+            self.pipe.enable_model_cpu_offload()
             
             logger.info(f"✅ WanPipeline loaded successfully with dtype {self.dtype}")
-            logger.info(f"✅ Pipeline moved to {self.device}")
+            logger.info(f"✅ Pipeline configured for CPU offloading.")
             logger.info("🚀 Ready for video generation!")
             
         except Exception as e:
