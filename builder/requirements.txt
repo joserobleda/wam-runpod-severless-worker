@@ -1,19 +1,24 @@
-# Base Serverless and ML Dependencies
-runpod>=1.4.2
-torch>=2.4.0
-diffusers>=0.34.0
-transformers>=4.44.0
-accelerate>=0.33.0
+# --- Core ML Stack (Version-Pinned for Stability) ---
+torch==2.4.0
+diffusers==0.34.0
+transformers==4.44.0
+accelerate==0.33.0
 safetensors>=0.4.4
+xformers==0.0.28
+einops==0.8.0
+omegaconf
+
+# --- Serverless Application Dependencies ---
+runpod>=1.4.2
 boto3
 loguru
 
-# Image/Video Processing Essentials
+# --- Image/Video Processing Essentials ---
 Pillow>=10.4.0
 numpy>=1.26.0
 imageio>=2.35.0
 imageio-ffmpeg>=0.5.1
 opencv-python-headless>=4.10.0
 
-# Text Processing for WanPipeline
+# --- Text Processing for WanPipeline ---
 ftfy
