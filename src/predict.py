@@ -37,14 +37,22 @@ class SimplifiedWanPredictor:
             # Load a standard, stable VAE to ensure compatibility and prevent black frames.
             # This is a common fix for models with problematic VAEs.
             logger.info("📦 Loading stable VAE from stabilityai/sd-vae-ft-mse...")
+            vae_model_id = "stabilityai/sd-vae-ft-mse"
             vae = AutoencoderKL.from_pretrained(
-                "stabilityai/sd-vae-ft-mse",
+                vae_model_id,
                 torch_dtype=self.dtype,
+                trust_remote_code=True,
             )
-            logger.info("✅ VAE loaded successfully.")
+            
+            # Monkey-patch the VAE to make it compatible with the WanPipeline,
+            # which expects a `temperal_downsample` attribute for video models.
+            logger.info("🔧 Patching VAE with `temperal_downsample` attribute...")
+            vae.temperal_downsample = [1, 1]
+
+            logger.info(f"✅ VAE loaded successfully.")
 
             # Load WanPipeline, providing the custom-loaded VAE
-            logger.info("📦 Loading WanPipeline with the custom VAE...")
+            logger.info(f"📦 Loading WanPipeline with the custom VAE...")
             self.pipe = WanPipeline.from_pretrained(
                 model_id,
                 vae=vae,
