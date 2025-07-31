@@ -70,13 +70,14 @@ class Predictor:
             "stabilityai/stable-video-diffusion-img2vid-xt", 
             subfolder="vae"
         )
-        # Copy key modules (matches ComfyUI's approach for better stability without attribute loss)
-        vae.encoder.load_state_dict(stable_vae.encoder.state_dict(), strict=False)
+        # Copy key modules. The encoder architectures are incompatible, so we only
+        # patch the decoder and its related components, which are responsible for final video quality.
+        # vae.encoder.load_state_dict(stable_vae.encoder.state_dict(), strict=False) # This fails due to architecture mismatch
         vae.decoder.load_state_dict(stable_vae.decoder.state_dict(), strict=False)
         vae.quant_conv.load_state_dict(stable_vae.quant_conv.state_dict(), strict=False)
         vae.post_quant_conv.load_state_dict(stable_vae.post_quant_conv.state_dict(), strict=False)
         vae.to(self.dtype)
-        logger.info("✅ VAE patched with stable SVD weights (full modules).")
+        logger.info("✅ VAE decoder patched with stable SVD weights.")
 
         # --- Step 2: Load the Main Pipeline with the Corrected VAE ---
         logger.info(f"📦 Loading WanPipeline from {model_id} with corrected VAE...")
