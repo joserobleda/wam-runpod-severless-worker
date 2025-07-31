@@ -145,30 +145,35 @@ class Predictor:
         video_frames = []
         rgb_factors = torch.tensor(LATENT_RGB_FACTORS, device=self.device, dtype=self.dtype).unsqueeze(0)
         
-        latents = latents.permute(2, 0, 1, 3, 4)
-        
+        # Original shape: (B, C, F, H, W) -> Permute to (F*B, C, H, W) for batching
+        batch_size, channels, num_frames_in, height, width = latents.shape
+        latents_batched = latents.permute(2, 0, 1, 3, 4).reshape(num_frames_in * batch_size, channels, height, width)
+
         try:
             # Fast-path: Attempt to decode all frames in a single batch for maximum speed.
             logger.info("🏎️ Attempting fast-path batch decoding...")
-            batch_size, channels, height, width = latents.shape[2], latents.shape[3], latents.shape[4], latents.shape[5]
-            decoded = self.pipe.vae.decode(latents.reshape(-1, channels, height, width) / SCALE_FACTOR).sample
+            decoded = self.pipe.vae.decode(latents_batched / SCALE_FACTOR).sample
         except Exception as e:
             # Fallback: If batching fails (e.g., OOM), process frame-by-frame.
             logger.warning(f"Batch decode failed ({e}), falling back to slower frame-by-frame decoding.")
             decoded_list = []
-            for latent_frame in latents:
+            for i in range(latents_batched.shape[0]):
+                latent_frame = latents_batched[i].unsqueeze(0)
                 decoded_frame = self.pipe.vae.decode(latent_frame / SCALE_FACTOR).sample
                 decoded_list.append(decoded_frame)
             decoded = torch.cat(decoded_list, dim=0)
 
         # Apply color correction (vectorized over all frames)
-        decoded = decoded.permute(0, 2, 3, 1)
-        corrected = torch.einsum('...i,ji->...j', decoded, rgb_factors[0])
-        corrected = corrected.permute(0, 3, 1, 2)
-        corrected = corrected.clamp(0, 1)
+        # Permute from (F*B, C, H, W) to (F*B, H, W, C) for einsum
+        decoded_permuted = decoded.permute(0, 2, 3, 1)
+        corrected = torch.einsum('...i,ji->...j', decoded_permuted, rgb_factors[0])
+        
+        # Permute back to (F*B, C, H, W) for image conversion
+        corrected_permuted = corrected.permute(0, 3, 1, 2)
+        corrected_clamped = corrected_permuted.clamp(0, 1)
         
         # Convert to numpy/PIL
-        video_np = (corrected * 255).cpu().numpy().astype(np.uint8)
+        video_np = (corrected_clamped * 255).cpu().numpy().astype(np.uint8)
         for frame_np in video_np:
             # The numpy array is (C, H, W), but PIL needs (H, W, C), so we transpose.
             video_pil = Image.fromarray(frame_np.transpose(1, 2, 0))
