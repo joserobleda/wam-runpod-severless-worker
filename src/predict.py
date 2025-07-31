@@ -80,17 +80,16 @@ class Predictor:
                 vae=vae,
                 torch_dtype=self.dtype,
                 trust_remote_code=True,
-                # This is the key fix: By setting low_cpu_mem_usage=False, we force
-                # the model to be fully materialized in RAM before we move it to the GPU,
-                # which prevents the "meta tensor" error.
-                low_cpu_mem_usage=False
+                # The pipeline's config forces this to be True.
+                low_cpu_mem_usage=True
             )
-            
-            # Since offloading is not supported and we've loaded the full model,
-            # we must now manually move the entire pipeline to the GPU.
-            self.pipe.to(self.device)
 
-            logger.info("✅ Pipeline loaded to device.")
+            # This is the standard diffusers method for handling large models that are
+            # loaded with low_cpu_mem_usage. It sets up a hook to move modules
+            # to the GPU as they are needed, preventing VRAM OOM errors.
+            self.pipe.enable_model_cpu_offload()
+
+            logger.info("✅ Pipeline loaded and configured with CPU offloading.")
         except Exception as e:
             logger.error(f"❌ Error loading pipeline: {str(e)}")
             raise
