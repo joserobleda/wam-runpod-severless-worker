@@ -79,20 +79,15 @@ class Predictor:
                 model_id,
                 vae=vae,
                 torch_dtype=self.dtype,
-                trust_remote_code=True
+                trust_remote_code=True,
+                # This is the key fix: By setting low_cpu_mem_usage=False, we force
+                # the model to be fully materialized in RAM before we move it to the GPU,
+                # which prevents the "meta tensor" error.
+                low_cpu_mem_usage=False
             )
-            # DO NOT manually move the pipe to the device. The `enable_model_cpu_offload`
-            # function handles device placement and will move components to the GPU as needed.
-            # Manually calling .to() conflicts with the meta-tensor loading strategy.
-            # self.pipe.to(self.device)
             
-            # The custom WanPipeline does not support the standard 'enable_vae_slicing' or
-            # 'enable_model_cpu_offload' methods. We will rely on the GPU having enough
-            # VRAM to handle the model directly.
-            # self.pipe.enable_vae_slicing()
-            # self.pipe.enable_model_cpu_offload()
-            
-            # Since offloading is not supported, we must manually move the pipeline to the GPU.
+            # Since offloading is not supported and we've loaded the full model,
+            # we must now manually move the entire pipeline to the GPU.
             self.pipe.to(self.device)
 
             logger.info("✅ Pipeline loaded to device.")
