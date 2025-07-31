@@ -143,7 +143,6 @@ class Predictor:
 
         # --- Step 2: Manually decode latents using ComfyUI's method (Vectorized for Performance) ---
         video_frames = []
-        rgb_factors = torch.tensor(LATENT_RGB_FACTORS, device=self.device, dtype=self.dtype).unsqueeze(0)
         
         # Original shape: (B, C, F, H, W) -> Permute to (F*B, C, H, W) for batching
         batch_size, channels, num_frames_in, height, width = latents.shape
@@ -151,6 +150,7 @@ class Predictor:
 
         try:
             # Fast-path: Attempt to decode all frames in a single batch for maximum speed.
+            # The key is dividing latents by the model-specific scale factor before decoding.
             logger.info("🏎️ Attempting fast-path batch decoding...")
             decoded = self.pipe.vae.decode(latents_batched / SCALE_FACTOR).sample
         except Exception as e:
@@ -163,19 +163,13 @@ class Predictor:
                 decoded_list.append(decoded_frame)
             decoded = torch.cat(decoded_list, dim=0)
 
-        # Apply color correction (vectorized over all frames)
-        # Permute from (F*B, C, H, W) to (F*B, H, W, C) for einsum
-        decoded_permuted = decoded.permute(0, 2, 3, 1)
-        corrected = torch.einsum('...i,ji->...j', decoded_permuted, rgb_factors[0])
-        
-        # Permute back to (F*B, C, H, W) for image conversion
-        corrected_permuted = corrected.permute(0, 3, 1, 2)
-        corrected_clamped = corrected_permuted.clamp(0, 1)
+        # Post-processing: clamp and convert to image format
+        decoded = decoded.clamp(0, 1)
         
         # Convert to numpy/PIL
-        video_np = (corrected_clamped * 255).cpu().numpy().astype(np.uint8)
+        video_np = (decoded * 255).cpu().numpy().astype(np.uint8)
         for frame_np in video_np:
-            # The numpy array is (C, H, W), but PIL needs (H, W, C), so we transpose.
+            # The numpy array from diffusers is (C, H, W), but PIL needs (H, W, C), so we transpose.
             video_pil = Image.fromarray(frame_np.transpose(1, 2, 0))
             video_frames.append(video_pil)
 
