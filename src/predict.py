@@ -49,31 +49,31 @@ class Predictor:
         vae.post_quant_conv.load_state_dict(stable_vae.post_quant_conv.state_dict(), strict=False)
         vae.to(self.dtype)
         
-        # Ensure key attribute exists (fallback from repo issues)
-        if not hasattr(vae, 'temporal_downsample'):
-            logger.warning("⚠️ temporal_downsample missing - setting fallback from config (sum=2 for scale=4).")
-            vae.temporal_downsample = [1, 1]  # Matches typical Wan config (2**2=4)
+        # The pipeline checks for a 'temperal_downsample' attribute. The original VAE should have it,
+        # but we add a fallback just in case, based on community recommendations.
+        if not hasattr(vae, 'temperal_downsample'):
+            logger.warning("⚠️ 'temperal_downsample' missing. Setting fallback value [1, 1].")
+            vae.temperal_downsample = [1, 1]
         
         logger.info("✅ VAE patched selectively with stable weights.")
 
         # --- Step 2: Load the Main Pipeline with the Corrected VAE ---
         logger.info(f"📦 Loading WanPipeline from {model_id} with corrected VAE...")
-        try:
-            self.pipe = WanPipeline.from_pretrained(
-                model_id,
-                vae=vae,
-                torch_dtype=self.dtype,
-                trust_remote_code=True
-            )
-            self.pipe.to(self.device)
-            # Repo-recommended optimizations for memory and stability
-            self.pipe.enable_vae_slicing()
-            self.pipe.enable_model_cpu_offload()  # Offload to CPU if VRAM low
-            logger.info("✅ Pipeline loaded to device with optimizations.")
-        except Exception as e:
-            logger.error(f"❌ Error loading pipeline: {str(e)}")
-            raise
-
+        
+        self.pipe = WanPipeline.from_pretrained(
+            model_id,
+            vae=vae,
+            torch_dtype=self.dtype,
+            trust_remote_code=True
+        )
+        
+        # Repo-recommended optimizations for memory and stability
+        self.pipe.enable_vae_slicing()
+        self.pipe.enable_model_cpu_offload()  # Offload to CPU if VRAM low
+        
+        self.pipe.to(self.device)
+        logger.info("✅ Pipeline loaded to device with optimizations.")
+        
         # --- Step 3: Compile for Performance ---
         logger.info("🔧 Compiling model with torch.compile (first run will be slow)...")
         self.pipe.transformer = torch.compile(self.pipe.transformer, mode="max-autotune", fullgraph=True)
@@ -123,8 +123,5 @@ class Predictor:
         export_to_video(video_frames, output_path, fps=fps)
         
         logger.info(f"✅ Video saved to {output_path}")
-        
-        # Clean up temp files
-        rp_cleanup.clean(["/tmp"])
         
         return output_path
