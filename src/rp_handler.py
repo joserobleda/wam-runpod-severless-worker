@@ -89,38 +89,84 @@ def handler(job):
     """
     job_input = job['input']
 
-    # Extract parameters from the job input with defaults
+    # Extract parameters from the job input with defaults (aligned with reference repository)
+    mode = job_input.get('mode', 'txt2video')
     prompt = job_input.get('prompt', "a photo of an astronaut riding a horse on mars")
-    negative_prompt = job_input.get('negative_prompt', "blurry, low quality, static, poorly drawn, deformed")
-    size = job_input.get('size', '512x512')
-    num_frames = job_input.get('num_frames', 24)
-    num_inference_steps = job_input.get('num_inference_steps', 25)
-    guidance_scale = job_input.get('guidance_scale', 8.5)
-    fps = job_input.get('fps', 12)
+    negative_prompt = job_input.get('negative_prompt', "")
+    num_frames = job_input.get('num_frames', 48)
+    guidance_scale = job_input.get('guidance_scale', 6.0)
+    aspect_ratio = job_input.get('aspect_ratio', '16:9')
+    num_inference_steps = job_input.get('num_inference_steps', 50)
+    max_sequence_length = job_input.get('max_sequence_length', 226)
+    fps = job_input.get('fps', 8)
     seed = job_input.get('seed', None)
-
-    # Generate the video
-    video_path = model.predict(
-        prompt=prompt,
-        negative_prompt=negative_prompt,
-        size=size,
-        num_frames=num_frames,
-        num_inference_steps=num_inference_steps,
-        guidance_scale=guidance_scale,
-        fps=fps,
-        seed=seed,
-    )
-
-    # Upload the generated video to R2
-    video_url = upload_to_r2(video_path, job['id'])
-
-    # Clean up the temporary file
-    rp_cleanup.clean([os.path.dirname(video_path)])
-
-    if not video_url:
-        return {"error": "Video generation succeeded, but upload failed."}
+    
+    print(f"🎬 Generating video with mode: {mode}")
+    print(f"📝 Prompt: {prompt}")
+    print(f"📊 Parameters: frames={num_frames}, steps={num_inference_steps}, guidance={guidance_scale}, fps={fps}")
+    print(f"🎯 Aspect ratio: {aspect_ratio}, Max sequence length: {max_sequence_length}")
+    if negative_prompt:
+        print(f"❌ Negative prompt: {negative_prompt}")
+    
+    try:
+        # Validate mode
+        if mode != 'txt2video':
+            return {"error": f"Unsupported mode: {mode}. Only 'txt2video' is currently supported."}
         
-    return {"video_url": video_url}
+        # Generate the video using CogVideoX (only parameters it supports)
+        encoded_frames = model.predict(
+            prompt=prompt,
+            number_of_frames=num_frames,
+            num_inference_steps=num_inference_steps,
+            guidance_scale=guidance_scale,
+            fps=fps
+        )
+        
+        # The predict method creates a file called "new_out.mp4" which we can use for upload
+        video_file_path = "new_out.mp4"
+        
+        # Check if the video file was created
+        if not os.path.exists(video_file_path):
+            return {"error": "Video generation failed - output file not found."}
+        
+        print(f"✅ Video generated successfully: {video_file_path}")
+        
+        # Upload the generated video to R2 (keeping our existing R2 upload functionality)
+        video_url = upload_to_r2(video_file_path, job['id'])
+        
+        # Clean up the temporary file after upload
+        try:
+            if os.path.exists(video_file_path):
+                os.remove(video_file_path)
+                print(f"🧹 Cleaned up temporary file: {video_file_path}")
+        except Exception as cleanup_error:
+            print(f"⚠️ Warning: Could not clean up temporary file: {cleanup_error}")
+        
+        if not video_url:
+            return {"error": "Video generation succeeded, but upload failed."}
+            
+        print(f"🎉 Video successfully uploaded to: {video_url}")
+        
+        # Return response in format similar to reference repository
+        return {
+            "video_url": video_url,
+            "parameters": {
+                "mode": mode,
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "num_frames": num_frames,
+                "guidance_scale": guidance_scale,
+                "aspect_ratio": aspect_ratio,
+                "num_inference_steps": num_inference_steps,
+                "max_sequence_length": max_sequence_length,
+                "fps": fps,
+                "seed": seed
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Error during video generation: {str(e)}")
+        return {"error": f"Video generation failed: {str(e)}"}
 
 # Start the serverless worker
 runpod.serverless.start({"handler": handler}) 

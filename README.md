@@ -1,265 +1,200 @@
-# Wan 2.2 TI2V-5B RunPod Serverless Worker
+# 🧠 Text-to-Video Serverless Deployment (RunPod)
 
-A RunPod serverless worker for generating videos using the [Wan 2.2 TI2V-5B model](https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B). This service supports both text-to-video and image-to-video generation at 720P resolution with 24fps.
+This repository provides a serverless deployment template for **text-to-video generation** using RunPod. It allows you to run CogVideoX-5b generative video model from a text prompt via a simple API—fully hosted on RunPod's secure, serverless GPU environment with automatic Cloudflare R2 storage upload.
 
-## Features
+---
 
-- 🎬 **Text-to-Video Generation**: Generate videos from text prompts
-- 🖼️ **Image-to-Video Generation**: Animate static images with text guidance
-- 🚀 **High Performance**: Optimized for single consumer-grade GPUs (RTX 4090)
-- ☁️ **Cloud Storage**: Automatic upload to Cloudflare R2 storage
-- 🔧 **Memory Optimized**: Efficient GPU memory management for serverless deployment
-- 📏 **720P Quality**: Generate videos at 1280x704 or 704x1280 resolution
-- ⚡ **Fast Generation**: One of the fastest 720P@24fps models available
+## 🚀 Features
 
-## Model Information
+* 🔄 **Text-to-Video** generation using CogVideoX-5b model
+* 🌐 **API endpoint** support for easy integration
+* ⚙️ **RunPod serverless template** with `rp_handler.py` and custom Dockerfile
+* ☁️ **Automatic R2 Upload**: Videos are automatically uploaded to Cloudflare R2 storage
+* 💸 **Low cost & scalable**—only pay when your model is running
+* 🎬 **High Quality**: State-of-the-art video generation with configurable parameters
 
-- **Model**: Wan 2.2 TI2V-5B (5 billion parameters)
-- **Resolution**: Supports 720P (1280x704 or 704x1280)
-- **Frame Rate**: 24 FPS
-- **Max Duration**: Up to 10 seconds (240 frames)
-- **Compression**: High-compression VAE with 16×16×4 ratio
+---
 
-## Requirements
+## 🛠️ Requirements
 
-- GPU: 24GB+ VRAM (RTX 4090 or better)
-- Storage: ~15GB for model weights
-- Memory: 32GB+ RAM recommended
+* RunPod account: https://www.runpod.io/
+* Cloudflare R2 storage account for video uploads
+* Docker knowledge (basic)
+* GPU with 24GB+ VRAM (RTX 4090, A100, or similar)
+* This repo cloned locally or on GitHub
 
-## Quick Start
+---
 
-### 1. Build and Deploy
+## ⚙️ Deployment Instructions
+
+### 1. Clone this repo
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd wam-runpod-severless-worker
-
-# Build the Docker image
-docker build -t wan22-ti2v-5b .
-
-# Deploy to RunPod (replace with your endpoint)
-# Upload to RunPod container registry and deploy
+git clone https://github.com/your-username/cogvideox-runpod-template.git
+cd cogvideox-runpod-template
 ```
 
-### 2. Environment Variables
+### 2. Set up your Cloudflare R2 Storage
 
-Set these environment variables in your RunPod endpoint:
+Configure these environment variables in RunPod:
 
 ```bash
 # Required for R2 Storage
 BUCKET_ENDPOINT_URL=https://your-account-id.r2.cloudflarestorage.com/your-bucket-name
 BUCKET_ACCESS_KEY_ID=your-r2-access-key
 BUCKET_SECRET_ACCESS_KEY=your-r2-secret-key
-BUCKET_NAME=wam-videos  # Optional, defaults to 'wam-videos'
-
-# Worker Configuration (auto-set by RunPod)
-WORKER_MODEL_DIR=/app/model
-WORKER_USE_CUDA=True
+BUCKET_NAME=your-bucket-name  # Optional if included in endpoint URL
 ```
 
-### 3. Test the Service
+### 3. Create a Serverless Endpoint on RunPod
 
-Send a POST request to your RunPod endpoint:
+1. Log in to RunPod
+2. Go to **"Serverless > Community Templates"**
+3. Click **"Create Endpoint"** and select **"Custom Template"**
+4. Upload this repository (or connect your GitHub repo)
+5. Set the environment variables for R2 storage
+6. RunPod will automatically detect `rp_handler.py` and the `Dockerfile`
+
+### 4. Test the Endpoint
+
+Use the sample `test_input.json` file or send a POST request like this:
+
+```json
+{
+    "input": {
+        "mode": "txt2video",
+        "prompt": "A panda, dressed in a small, red jacket and a tiny hat, sits on a wooden stool in a serene bamboo forest. The panda's fluffy paws strum a miniature acoustic guitar, producing soft, melodic tunes. Nearby, a few other pandas gather, watching curiously and some clapping in rhythm. Sunlight filters through the tall bamboo, casting a gentle glow on the scene. The panda's face is expressive, showing concentration and joy as it plays. The background includes a small, flowing stream and vibrant green foliage, enhancing the peaceful and magical atmosphere of this unique musical performance",
+        "negative_prompt": "",
+        "num_frames": 48,
+        "guidance_scale": 6,
+        "aspect_ratio": "1:1",
+        "num_inference_steps": 50,
+        "max_sequence_length": 226,
+        "fps": 8
+    }
+}
+```
+
+---
+
+## 📥 Sample API Call
 
 ```bash
-curl -X POST https://api.runpod.ai/v2/your-endpoint-id/run \
+curl -X POST https://api.runpod.ai/v2/YOUR-ENDPOINT-ID/run \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-api-key" \
-  -d '{
-    "input": {
-      "prompt": "A majestic golden retriever running through a sunlit meadow with wildflowers, slow motion, cinematic quality"
-    }
-  }'
+  -d @test_input.json
 ```
 
-## API Reference
+---
 
-### Input Parameters
+## 📋 API Parameters
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `prompt` | string | Yes | - | Text prompt describing the video to generate |
-| `image` | string | No | null | URL of input image for image-to-video generation |
-| `size` | string | No | "1280*704" | Video resolution (1280*704 or 704*1280) |
-| `num_frames` | integer | No | 120 | Number of frames (24-240, 24fps) |
-| `guidance_scale` | float | No | 7.0 | Guidance scale (1.0-20.0) |
-| `num_inference_steps` | integer | No | 50 | Denoising steps (10-100) |
-| `seed` | integer | No | null | Random seed for reproducible results |
-| `fps` | integer | No | 24 | Frames per second (12-30) |
-| `use_prompt_extend` | boolean | No | false | Automatically enhance the prompt |
+| `mode` | string | No | "txt2video" | Generation mode (currently only supports txt2video) |
+| `prompt` | string | Yes | - | Text description of the video to generate |
+| `negative_prompt` | string | No | "" | What to avoid in the generation |
+| `num_frames` | integer | No | 48 | Number of frames (16-120) |
+| `guidance_scale` | float | No | 6.0 | How closely to follow the prompt (1.0-20.0) |
+| `aspect_ratio` | string | No | "16:9" | Video aspect ratio (informational) |
+| `num_inference_steps` | integer | No | 50 | Denoising steps for quality (10-100) |
+| `max_sequence_length` | integer | No | 226 | Maximum text sequence length (128-512) |
+| `fps` | integer | No | 8 | Frames per second (6-24) |
+| `seed` | integer | No | None | Random seed for reproducible results |
 
-### Example Requests
+---
 
-#### Simple Text-to-Video
+## 🎯 Example Responses
+
+### Successful Response
 ```json
 {
-  "input": {
-    "prompt": "A cat playing with a ball of yarn in a cozy living room"
-  }
-}
-```
-
-#### Advanced Text-to-Video
-```json
-{
-  "input": {
-    "prompt": "Epic battle scene with dragons flying over a medieval castle, cinematic quality, dramatic lighting",
-    "size": "1280*704",
-    "num_frames": 180,
-    "guidance_scale": 8.0,
-    "num_inference_steps": 60,
-    "seed": 12345,
-    "fps": 24,
-    "use_prompt_extend": true
-  }
-}
-```
-
-#### Image-to-Video
-```json
-{
-  "input": {
-    "prompt": "The person in the image starts walking forward with a confident smile",
-    "image": "https://example.com/your-image.jpg",
-    "size": "1280*704",
-    "num_frames": 120,
-    "guidance_scale": 7.0
-  }
-}
-```
-
-### Response Format
-
-```json
-{
-  "delayTime": 1250,
-  "executionTime": 45000,
-  "id": "job-id-12345",
-  "output": {
-    "video_url": "https://your-r2-bucket.com/job-id-12345.mp4",
-    "video_size_mb": 12.5,
-    "parameters": {
-      "prompt": "Your input prompt",
-      "size": "1280*704",
-      "num_frames": 120,
-      "guidance_scale": 7.0,
-      "num_inference_steps": 50,
-      "seed": null,
-      "fps": 24,
-      "use_prompt_extend": false
+    "id": "job-12345-abcde",
+    "status": "COMPLETED",
+    "output": {
+        "video_url": "https://your-r2-endpoint.com/your-bucket/job-12345-abcde.mp4",
+        "parameters": {
+            "mode": "txt2video",
+            "prompt": "A cat walking in a garden",
+            "negative_prompt": "",
+            "num_frames": 24,
+            "guidance_scale": 8.5,
+            "aspect_ratio": "16:9",
+            "num_inference_steps": 25,
+            "max_sequence_length": 226,
+            "fps": 12,
+            "seed": null
+        }
     }
-  },
-  "status": "COMPLETED"
 }
 ```
 
-## Performance
-
-### Generation Times (RTX 4090)
-
-| Configuration | Time | Notes |
-|---------------|------|-------|
-| 5s @ 720P (120 frames) | ~8-12 min | Default settings |
-| 3s @ 720P (72 frames) | ~5-8 min | Faster generation |
-| 7s @ 720P (168 frames) | ~12-18 min | Longer videos |
-
-### Memory Usage
-
-- **Model Loading**: ~12GB VRAM
-- **Peak Generation**: ~20GB VRAM
-- **Idle**: ~8GB VRAM
-
-## Tips for Better Results
-
-### Prompt Engineering
-- Use descriptive, detailed prompts
-- Include cinematic terms: "cinematic quality", "professional lighting", "smooth motion"
-- Specify camera movements: "slow motion", "close-up", "wide shot"
-- Add style descriptors: "dramatic", "serene", "epic", "realistic"
-
-### Image-to-Video Tips
-- Use high-quality input images (1280x704 recommended)
-- Ensure good lighting and clear subjects in input images
-- Prompts should describe the motion you want to see
-
-### Performance Optimization
-- Use fewer inference steps (20-30) for faster generation
-- Reduce frame count for quicker results
-- Enable prompt extension for better quality with simple prompts
-
-## Troubleshooting
-
-### Common Issues
-
-**Model Loading Fails**
-- Ensure sufficient GPU memory (24GB+)
-- Check model files were downloaded correctly during build
-
-**Generation Timeout**
-- Reduce `num_frames` or `num_inference_steps`
-- Check GPU memory availability
-
-**Upload Failures**
-- Verify R2 credentials are correct
-- Check bucket permissions
-- Ensure sufficient storage space
-
-**Out of Memory**
-- Reduce batch size in generation
-- Lower resolution if needed
-- Clear cache between generations
-
-### Monitoring
-
-The worker provides detailed logging:
-- Model loading status
-- GPU memory usage
-- Generation progress
-- Upload confirmation
-- Error details
-
-## Development
-
-### Local Development
-
-```bash
-# Clone and setup
-git clone <repository-url>
-cd wam-runpod-severless-worker
-
-# Install dependencies
-pip install -r builder/requirements.txt
-
-# Download model manually (if needed)
-huggingface-cli download Wan-AI/Wan2.2-TI2V-5B --local-dir ./model/wan2.2-ti2v-5b
-
-# Test locally
-python src/rp_handler.py
+### Error Response
+```json
+{
+    "id": "job-12345-abcde",
+    "status": "FAILED",
+    "error": "Video generation failed: CUDA out of memory"
+}
 ```
 
-### Custom Model Path
+---
 
-To use a different model location:
+## 🏃‍♂️ Local Testing
+
+You can test video generation locally using the included `generate_video.py` script:
+
 ```bash
-export WORKER_MODEL_DIR=/path/to/your/models
-python src/rp_handler.py
+# Simple generation
+python generate_video.py --prompt "A cat walking in a garden" --output "my_video.mp4"
+
+# Advanced generation with custom parameters
+python generate_video.py \
+    --prompt "A dragon flying through clouds" \
+    --num-frames 60 \
+    --guidance-scale 7.0 \
+    --num-inference-steps 40 \
+    --fps 12 \
+    --output "dragon_video.mp4"
+
+# Load parameters from config file
+python generate_video.py --config test_input.json --output "config_video.mp4"
 ```
 
-## License
+---
 
-This project uses the Wan 2.2 model under the Apache 2.0 License. See the [original repository](https://github.com/Wan-Video/Wan2.2) for details.
+## 📌 Notes
 
-## Acknowledgments
+* **GPU Requirements**: You need a GPU with at least 24 GB VRAM for CogVideoX-5b
+* **Model Download**: The model (~15GB) will be downloaded automatically on first run
+* **Generation Time**: Varies by prompt and frame count (typically 5-15 minutes)
+* **R2 Storage**: Videos are automatically uploaded to your configured R2 bucket
+* **File Cleanup**: Temporary files are cleaned up after successful upload
 
-- [Wan-AI Team](https://huggingface.co/Wan-AI) for the amazing Wan 2.2 model
-- [RunPod](https://runpod.io) for the serverless infrastructure
-- [Diffusers](https://huggingface.co/docs/diffusers) for the pipeline implementation
+---
 
-## Support
+## 🎨 Model Information
 
-For issues and questions:
-1. Check the troubleshooting section above
-2. Review RunPod logs for detailed error messages
-3. Ensure all environment variables are set correctly
-4. Verify GPU requirements are met
+- **Model**: CogVideoX-5b from THUDM
+- **Framework**: Diffusers + Transformers  
+- **Precision**: Float16 for memory efficiency
+- **Max Frames**: Up to 120 frames
+- **Quality**: State-of-the-art video generation
+
+---
+
+## ☁️ R2 Storage Integration
+
+This template includes automatic upload to Cloudflare R2 storage:
+
+1. **Generated videos** are automatically uploaded to your R2 bucket
+2. **Public URLs** are returned for easy access and sharing
+3. **Temporary files** are cleaned up after upload
+4. **Error handling** for upload failures with fallback responses
+
+---
+
+## 📄 License
+
+MIT License. Feel free to modify and use for commercial or personal projects.

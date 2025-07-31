@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Ultra-simple Wan 2.2 TI2V-5B RunPod Worker (Diffusers)
+# CogVideoX-5b RunPod Worker Startup Script
 set -e
 
-echo "🚀 Starting Wan 2.2 TI2V-5B RunPod Worker (Diffusers approach)..."
+echo "🚀 Starting CogVideoX-5b RunPod Worker..."
 
 # Basic environment
 export WORKER_DIR=${WORKER_DIR:-"/app"}
@@ -12,7 +12,7 @@ export WORKER_DIR=${WORKER_DIR:-"/app"}
 export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:512"
 export CUDA_VISIBLE_DEVICES="0"
 
-echo "✅ Environment configured for Diffusers"
+echo "✅ Environment configured for CogVideoX"
 
 # Quick GPU check
 if command -v nvidia-smi >/dev/null 2>&1; then
@@ -31,13 +31,44 @@ python3 -c "import diffusers; print(f'Diffusers: {diffusers.__version__}')" || e
 python3 -c "import runpod; print(f'RunPod: {runpod.__version__}')" || echo "❌ RunPod import failed"
 
 # Quick diffusers test (don't actually load the model, just test the import)
-echo "🔧 Testing diffusers Wan2.2 components..."
-python3 -c "from diffusers import WanPipeline; print('✅ WanPipeline import successful')" || echo "❌ WanPipeline import failed"
-python3 -c "from diffusers import AutoencoderKLWan; print('✅ AutoencoderKLWan import successful')" || echo "❌ AutoencoderKLWan import failed"
-python3 -c "from diffusers import WanTransformer3DModel; print('✅ WanTransformer3DModel import successful')" || echo "❌ WanTransformer3DModel import failed"
-python3 -c "from diffusers import UniPCMultistepScheduler; print('✅ UniPCMultistepScheduler import successful')" || echo "❌ UniPCMultistepScheduler import failed"
+echo "🔧 Testing CogVideoX components..."
+python3 -c "from diffusers import CogVideoXPipeline; print('✅ CogVideoXPipeline import successful')" || echo "❌ CogVideoXPipeline import failed"
+python3 -c "from diffusers import AutoencoderKLCogVideoX; print('✅ AutoencoderKLCogVideoX import successful')" || echo "❌ AutoencoderKLCogVideoX import failed"
+python3 -c "from diffusers import CogVideoXTransformer3DModel; print('✅ CogVideoXTransformer3DModel import successful')" || echo "❌ CogVideoXTransformer3DModel import failed"
+python3 -c "from transformers import T5EncoderModel, T5Tokenizer; print('✅ T5 components import successful')" || echo "❌ T5 components import failed"
+
+# Download the model if it doesn't exist
+echo "📥 Checking model cache..."
+cd "${WORKER_DIR}"
+
+if [ ! -d "model_cache" ] || [ -z "$(ls -A model_cache 2>/dev/null)" ]; then
+    echo "📥 Model not found, downloading CogVideoX-5b..."
+    python3 download_model.py
+    if [ $? -ne 0 ]; then
+        echo "❌ Model download failed!"
+        exit 1
+    fi
+else
+    echo "✅ Model cache found, skipping download"
+fi
+
+# Verify model is working
+echo "🔍 Quick model verification..."
+python3 -c "
+import os
+os.chdir('${WORKER_DIR}')
+from predict import Predictor
+print('✅ Model verification passed')
+" || {
+    echo "❌ Model verification failed, re-downloading..."
+    rm -rf model_cache
+    python3 download_model.py
+    if [ $? -ne 0 ]; then
+        echo "❌ Model re-download failed!"
+        exit 1
+    fi
+}
 
 # Start the handler
-echo "🎬 Starting Diffusers-based handler..."
-cd "${WORKER_DIR}"
+echo "🎬 Starting CogVideoX handler..."
 exec python3 -u rp_handler.py 
