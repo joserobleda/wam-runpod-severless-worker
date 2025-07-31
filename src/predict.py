@@ -63,33 +63,30 @@ class Predictor:
         vae.__class__ = AutoencoderKLWan
         logger.info("✅ VAE ready.")
 
-        # --- Step 2: Manually load all other pipeline components ---
-        # We bypass the buggy WanPipeline.from_pretrained and build it ourselves.
-        logger.info("📦 Loading Transformer...")
-        transformer = WanTransformer3DModel.from_pretrained(model_id, subfolder="transformer")
-        logger.info("📦 Loading Tokenizer...")
-        tokenizer = T5Tokenizer.from_pretrained(model_id, subfolder="tokenizer")
-        logger.info("📦 Loading Text Encoder...")
-        text_encoder = T5EncoderModel.from_pretrained(model_id, subfolder="text_encoder")
-        logger.info("📦 Loading Scheduler...")
-        scheduler = UniPCMultistepScheduler.from_pretrained(model_id, subfolder="scheduler")
-        
-        # --- Step 3: Manually assemble the pipeline ---
-        logger.info("🔧 Assembling pipeline from components...")
-        self.pipe = WanPipeline(
-            vae=vae,
-            text_encoder=text_encoder,
-            tokenizer=tokenizer,
-            transformer=transformer,
-            scheduler=scheduler
-        )
+        # --- Step 2: Load the Main Pipeline using the standard 'offload' method ---
+        # This is the official, documented way to load large models. We are returning
+        # to this method as manual loading was a dead end.
+        logger.info(f"📦 Loading WanPipeline from {model_id} with CPU offloading...")
+        try:
+            self.pipe = WanPipeline.from_pretrained(
+                model_id,
+                vae=vae,
+                torch_dtype=self.dtype,
+                trust_remote_code=True,
+                # The pipeline's config requires low_cpu_mem_usage=True.
+                low_cpu_mem_usage=True
+            )
 
-        # --- Step 4: Move to device and set precision ---
-        logger.info(f"➡️ Moving pipeline to {self.device} with {self.dtype} precision...")
-        self.pipe.to(dtype=self.dtype, device=self.device)
-        logger.info("✅ Pipeline on device and ready.")
+            # This handles the 'meta tensor' model created by low_cpu_mem_usage,
+            # moving components to the GPU as needed.
+            self.pipe.enable_model_cpu_offload()
+ 
+            logger.info("✅ Pipeline loaded and configured with CPU offloading.")
+        except Exception as e:
+            logger.error(f"❌ Error loading pipeline: {str(e)}")
+            raise
 
-        # --- Step 5: Compile for Performance ---
+        # --- Step 3: Compile for Performance ---
         logger.info("🔧 Compiling model with torch.compile (first run will be slow)...")
         self.pipe.transformer = torch.compile(self.pipe.transformer, mode="max-autotune", fullgraph=True)
         logger.info("✅ Model compiled successfully.")
