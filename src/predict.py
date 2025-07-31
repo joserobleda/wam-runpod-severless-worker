@@ -86,10 +86,16 @@ class Predictor:
             # Manually calling .to() conflicts with the meta-tensor loading strategy.
             # self.pipe.to(self.device)
             
-            # Optimizations (inspired by ComfyUI and repo)
-            self.pipe.enable_vae_slicing()
-            self.pipe.enable_model_cpu_offload()  # For low VRAM
-            logger.info("✅ Pipeline loaded and configured with CPU offloading.")
+            # The custom WanPipeline does not support the standard 'enable_vae_slicing' or
+            # 'enable_model_cpu_offload' methods. We will rely on the GPU having enough
+            # VRAM to handle the model directly.
+            # self.pipe.enable_vae_slicing()
+            # self.pipe.enable_model_cpu_offload()
+            
+            # Since offloading is not supported, we must manually move the pipeline to the GPU.
+            self.pipe.to(self.device)
+
+            logger.info("✅ Pipeline loaded to device.")
         except Exception as e:
             logger.error(f"❌ Error loading pipeline: {str(e)}")
             raise
