@@ -7,10 +7,7 @@ import os
 import torch
 import numpy as np
 from PIL import Image
-from diffusers import WanPipeline, AutoencoderKL, UniPCMultistepScheduler
-from diffusers.models.autoencoders.autoencoder_kl_wan import AutoencoderKLWan
-from diffusers.models.transformers.wan_transformer_3d import WanTransformer3DModel
-from transformers import T5EncoderModel, T5Tokenizer
+from diffusers import WanPipeline, AutoencoderKL
 from diffusers.utils import export_to_video
 from loguru import logger
 import tempfile
@@ -52,41 +49,45 @@ class Predictor:
         self.dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
         model_id = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
         
-        # --- Step 1: Load and patch the VAE ---
-        # The original Wan VAE is broken; we load a stable one and disguise it.
-        logger.info("📦 Loading and patching stable VAE...")
-        vae = AutoencoderKL.from_pretrained(
-            "stabilityai/stable-video-diffusion-img2vid-xt", 
-            subfolder="vae"
-        )
-        vae.temperal_downsample = [True, False, False, False]
-        vae.__class__ = AutoencoderKLWan
-        logger.info("✅ VAE ready.")
-
-        # --- Step 2: Load the Main Pipeline using the standard 'offload' method ---
-        # This is the official, documented way to load large models. We are returning
-        # to this method as manual loading was a dead end.
-        logger.info(f"📦 Loading WanPipeline from {model_id} with CPU offloading...")
+        # --- Step 1: Load pipeline with default VAE to fetch remote code ---
+        # This is necessary because the custom class `AutoencoderKLWan` is defined in
+        # a remote script that is only downloaded when `from_pretrained` is called.
+        logger.info(f"📦 Loading WanPipeline from {model_id} to fetch remote code...")
         try:
             self.pipe = WanPipeline.from_pretrained(
                 model_id,
-                vae=vae,
                 torch_dtype=self.dtype,
                 trust_remote_code=True,
-                # The pipeline's config requires low_cpu_mem_usage=True.
                 low_cpu_mem_usage=True
             )
-
-            # This handles the 'meta tensor' model created by low_cpu_mem_usage,
-            # moving components to the GPU as needed.
-            self.pipe.enable_model_cpu_offload()
- 
-            logger.info("✅ Pipeline loaded and configured with CPU offloading.")
         except Exception as e:
-            logger.error(f"❌ Error loading pipeline: {str(e)}")
+            logger.error(f"❌ Initial pipeline loading failed: {str(e)}")
             raise
 
-        # --- Step 3: Compile for Performance ---
+        # --- Step 2: Get a reference to the now-downloaded custom VAE class ---
+        AutoencoderKLWan = self.pipe.vae.__class__
+        logger.info(f"✅ Custom VAE class '{AutoencoderKLWan.__name__}' retrieved.")
+
+        # --- Step 3: Load the stable SVD VAE and patch it ---
+        logger.info("📦 Loading stable SVD VAE weights...")
+        stable_vae = AutoencoderKL.from_pretrained(
+            "stabilityai/stable-video-diffusion-img2vid-xt",
+            subfolder="vae"
+        )
+        stable_vae.temperal_downsample = [True, False, False, False]
+        stable_vae.__class__ = AutoencoderKLWan  # Apply the disguise
+        logger.info("✅ Stable VAE patched and disguised.")
+
+        # --- Step 4: Replace the pipeline's broken VAE with our patched one ---
+        logger.info("🔧 Replacing pipeline's VAE with the stable, patched version...")
+        self.pipe.vae = stable_vae
+        self.pipe.vae.to(dtype=self.dtype, device=self.device)
+        logger.info("✅ VAE replaced successfully.")
+
+        # --- Step 5: Configure offloading and compile ---
+        self.pipe.enable_model_cpu_offload()
+        logger.info("✅ Pipeline configured with CPU offloading.")
+        
         logger.info("🔧 Compiling model with torch.compile (first run will be slow)...")
         self.pipe.transformer = torch.compile(self.pipe.transformer, mode="max-autotune", fullgraph=True)
         logger.info("✅ Model compiled successfully.")
