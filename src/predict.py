@@ -42,6 +42,16 @@ class Predictor:
             vae=vae, 
             torch_dtype=torch.float16
         ).to("cuda")
+        
+        # Try to enable xformers memory efficient attention if available
+        try:
+            self.pipe.enable_xformers_memory_efficient_attention()
+            print("✅ xFormers memory efficient attention enabled")
+        except Exception as e:
+            print(f"⚠️ xFormers not available or failed to enable: {e}")
+            print("📝 Continuing with standard attention (this is fine)")
+        
+        print("🎬 CogVideoX pipeline initialized successfully")
 
     @torch.inference_mode()
     def predict(self, prompt, number_of_frames, num_inference_steps, guidance_scale, fps):

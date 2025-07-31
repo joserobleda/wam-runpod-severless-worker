@@ -26,9 +26,10 @@ fi
 # Quick Python/package check
 echo "🔧 Python version: $(python3 --version)"
 echo "🔧 Checking key packages..."
-python3 -c "import torch; print(f'PyTorch: {torch.__version__}')" || echo "❌ PyTorch import failed"
+python3 -c "import torch; print(f'PyTorch: {torch.__version__} (CUDA: {torch.version.cuda})')" || echo "❌ PyTorch import failed"
 python3 -c "import diffusers; print(f'Diffusers: {diffusers.__version__}')" || echo "❌ Diffusers import failed"
 python3 -c "import runpod; print(f'RunPod: {runpod.__version__}')" || echo "❌ RunPod import failed"
+python3 -c "import xformers; print(f'xFormers: {xformers.__version__}')" || echo "⚠️ xFormers not available (will use standard attention)"
 
 # Quick diffusers test (don't actually load the model, just test the import)
 echo "🔧 Testing CogVideoX components..."

@@ -5,7 +5,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKER_DIR=/app
 ENV TORCHINDUCTOR_CACHE_DIR=/persistent_volume/torch_cache
 ENV HF_HOME=/root/.cache/huggingface
-ENV TRANSFORMERS_CACHE=/root/.cache/huggingface/transformers
 ENV DIFFUSERS_CACHE=/root/.cache/huggingface/diffusers
 
 # Install system dependencies
