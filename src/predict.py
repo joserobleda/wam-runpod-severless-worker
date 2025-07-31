@@ -58,7 +58,10 @@ class Predictor:
                 model_id,
                 torch_dtype=self.dtype,
                 trust_remote_code=True,
-                low_cpu_mem_usage=True
+                low_cpu_mem_usage=True,
+                # Add this to force the initial load, even with the broken VAE.
+                # We are going to replace the VAE immediately anyway.
+                ignore_mismatched_sizes=True
             )
         except Exception as e:
             logger.error(f"❌ Initial pipeline loading failed: {str(e)}")
