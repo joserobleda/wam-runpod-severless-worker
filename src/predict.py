@@ -81,11 +81,15 @@ class Predictor:
                 torch_dtype=self.dtype,
                 trust_remote_code=True
             )
-            self.pipe.to(self.device)
+            # DO NOT manually move the pipe to the device. The `enable_model_cpu_offload`
+            # function handles device placement and will move components to the GPU as needed.
+            # Manually calling .to() conflicts with the meta-tensor loading strategy.
+            # self.pipe.to(self.device)
+            
             # Optimizations (inspired by ComfyUI and repo)
             self.pipe.enable_vae_slicing()
             self.pipe.enable_model_cpu_offload()  # For low VRAM
-            logger.info("✅ Pipeline loaded to device with optimizations.")
+            logger.info("✅ Pipeline loaded and configured with CPU offloading.")
         except Exception as e:
             logger.error(f"❌ Error loading pipeline: {str(e)}")
             raise
