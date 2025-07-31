@@ -7,7 +7,7 @@ import os
 import torch
 import numpy as np
 from PIL import Image
-from diffusers import WanPipeline
+from diffusers import WanPipeline, AutoencoderKL
 from diffusers.models.autoencoders.autoencoder_kl_wan import AutoencoderKLWan
 from diffusers.utils import export_to_video
 from loguru import logger
