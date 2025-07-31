@@ -7,8 +7,10 @@ import os
 import torch
 import numpy as np
 from PIL import Image
-from diffusers import WanPipeline, AutoencoderKL
+from diffusers import WanPipeline, AutoencoderKL, UniPCMultistepScheduler
 from diffusers.models.autoencoders.autoencoder_kl_wan import AutoencoderKLWan
+from diffusers.models.transformers.wan_transformer_3d import WanTransformer3DModel
+from transformers import T5EncoderModel, T5Tokenizer
 from diffusers.utils import export_to_video
 from loguru import logger
 import tempfile
@@ -50,51 +52,44 @@ class Predictor:
         self.dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
         model_id = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
         
-        # --- Step 1: Load a known-good VAE and modify it for compatibility ---
-        logger.info("📦 Loading stable VAE weights from stabilityai/stable-video-diffusion-img2vid-xt...")
-        # Load the stable, known-good video VAE. Patching the original Wan VAE is not feasible
-        # due to fundamental architectural mismatches in both its encoder and decoder.
+        # --- Step 1: Load and patch the VAE ---
+        # The original Wan VAE is broken; we load a stable one and disguise it.
+        logger.info("📦 Loading and patching stable VAE...")
         vae = AutoencoderKL.from_pretrained(
             "stabilityai/stable-video-diffusion-img2vid-xt", 
             subfolder="vae"
         )
-
-        logger.info("🔧 Patching VAE with 'temperal_downsample' attribute required by WanPipeline...")
-        # The WanPipeline's __init__ method requires this attribute to exist on the VAE object.
-        # We manually add it to our stable VAE object to ensure compatibility.
         vae.temperal_downsample = [True, False, False, False]
-
-        logger.info("🔧 Modifying VAE class to satisfy pipeline's type check...")
-        # The WanPipeline strictly checks for the `AutoencoderKLWan` class. We dynamically
-        # change the class of our loaded, stable VAE to trick this check.
         vae.__class__ = AutoencoderKLWan
+        logger.info("✅ VAE ready.")
+
+        # --- Step 2: Manually load all other pipeline components ---
+        # We bypass the buggy WanPipeline.from_pretrained and build it ourselves.
+        logger.info("📦 Loading Transformer...")
+        transformer = WanTransformer3DModel.from_pretrained(model_id, subfolder="transformer")
+        logger.info("📦 Loading Tokenizer...")
+        tokenizer = T5Tokenizer.from_pretrained(model_id, subfolder="tokenizer")
+        logger.info("📦 Loading Text Encoder...")
+        text_encoder = T5EncoderModel.from_pretrained(model_id, subfolder="text_encoder")
+        logger.info("📦 Loading Scheduler...")
+        scheduler = UniPCMultistepScheduler.from_pretrained(model_id, subfolder="scheduler")
         
-        vae.to(self.dtype)
-        logger.info("✅ VAE is now configured with stable weights and the correct class type.")
+        # --- Step 3: Manually assemble the pipeline ---
+        logger.info("🔧 Assembling pipeline from components...")
+        self.pipe = WanPipeline(
+            vae=vae,
+            text_encoder=text_encoder,
+            tokenizer=tokenizer,
+            transformer=transformer,
+            scheduler=scheduler
+        )
 
-        # --- Step 2: Load the Main Pipeline with the Corrected VAE ---
-        logger.info(f"📦 Loading WanPipeline from {model_id} with our corrected VAE...")
-        try:
-            self.pipe = WanPipeline.from_pretrained(
-                model_id,
-                vae=vae,
-                torch_dtype=self.dtype,
-                trust_remote_code=True,
-                # The pipeline's config forces this to be True.
-                low_cpu_mem_usage=True
-            )
+        # --- Step 4: Move to device and set precision ---
+        logger.info(f"➡️ Moving pipeline to {self.device} with {self.dtype} precision...")
+        self.pipe.to(dtype=self.dtype, device=self.device)
+        logger.info("✅ Pipeline on device and ready.")
 
-            # This is the standard diffusers method for handling large models that are
-            # loaded with low_cpu_mem_usage. It sets up a hook to move modules
-            # to the GPU as they are needed, preventing VRAM OOM errors.
-            self.pipe.enable_model_cpu_offload()
-
-            logger.info("✅ Pipeline loaded and configured with CPU offloading.")
-        except Exception as e:
-            logger.error(f"❌ Error loading pipeline: {str(e)}")
-            raise
-
-        # --- Step 3: Compile for Performance ---
+        # --- Step 5: Compile for Performance ---
         logger.info("🔧 Compiling model with torch.compile (first run will be slow)...")
         self.pipe.transformer = torch.compile(self.pipe.transformer, mode="max-autotune", fullgraph=True)
         logger.info("✅ Model compiled successfully.")
