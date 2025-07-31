@@ -26,28 +26,53 @@ from predict import Predictor
 model = Predictor()
 model.setup()
 
+
 def upload_to_r2(file_path, job_id):
     """Uploads a file to a Cloudflare R2 bucket."""
-    if not os.environ.get('BUCKET_ENDPOINT_URL'):
-        print("⚠ R2 environment variables not set. Skipping upload.")
+
+    endpoint_url = os.environ.get('BUCKET_ENDPOINT_URL')
+    access_key_id = os.environ.get('BUCKET_ACCESS_KEY_ID')
+    secret_access_key = os.environ.get('BUCKET_SECRET_ACCESS_KEY')
+
+    required_vars = {
+        'BUCKET_ENDPOINT_URL': endpoint_url,
+        'BUCKET_ACCESS_KEY_ID': access_key_id,
+        'BUCKET_SECRET_ACCESS_KEY': secret_access_key,
+    }
+
+    missing_vars = [key for key, value in required_vars.items() if not value]
+    if missing_vars:
+        print(f"❌ R2 Upload Failed: Missing environment variables: {', '.join(missing_vars)}")
         return None
 
     try:
+        # If the URL contains a bucket name, extract it
+        if '/' in endpoint_url.split('://', 1)[1]:
+            # URL format: https://account-id.r2.cloudflarestorage.com/bucket-name
+            base_url, bucket_name = endpoint_url.rsplit('/', 1)
+            actual_endpoint = base_url
+        else:
+            # URL format: https://account-id.r2.cloudflarestorage.com
+            actual_endpoint = endpoint_url
+            bucket_name = os.environ.get('BUCKET_NAME')
+            if not bucket_name:
+                print("❌ R2 Upload Failed: BUCKET_NAME environment variable is required when bucket is not in the endpoint URL.")
+                return None
+
         s3_client = boto3.client(
             's3',
-            endpoint_url=os.environ.get('BUCKET_ENDPOINT_URL'),
-            aws_access_key_id=os.environ.get('BUCKET_ACCESS_KEY_ID'),
-            aws_secret_access_key=os.environ.get('BUCKET_SECRET_ACCESS_KEY'),
+            endpoint_url=actual_endpoint,
+            aws_access_key_id=access_key_id,
+            aws_secret_access_key=secret_access_key,
             region_name='auto'
         )
 
-        bucket_name = os.environ.get('BUCKET_NAME')
         file_key = f"{job_id}.mp4"
 
         s3_client.upload_file(file_path, bucket_name, file_key)
 
-        # Construct the public URL
-        url = f"{os.environ.get('BUCKET_PUBLIC_URL')}/{file_key}"
+        # Construct the public URL from the endpoint and bucket name
+        url = f"{actual_endpoint}/{bucket_name}/{file_key}"
         print(f"✅ Successfully uploaded to R2: {url}")
         return url
     except ClientError as e:
@@ -56,6 +81,7 @@ def upload_to_r2(file_path, job_id):
     except Exception as e:
         print(f"❌ An unexpected error occurred during upload: {e}")
         return None
+
 
 def handler(job):
     """
