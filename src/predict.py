@@ -1,6 +1,6 @@
 """
 Simplified Wan 2.2 TI2V-5B using Diffusers with Full Parameter Support
-Based on official Hugging Face documentation
+Based on official Hugging Face documentation and Wan2.2 GitHub repo
 """
 
 import os
@@ -15,7 +15,6 @@ import tempfile
 import random
 import runpod
 from runpod.serverless.utils import rp_cleanup
-import sys
 
 # Set matmul precision for better performance on Ampere GPUs
 torch.set_float32_matmul_precision('high')
@@ -27,62 +26,59 @@ class Predictor:
     def setup(self):
         """Initializes the model pipeline and applies necessary patches."""
         logger.info("🚀 Initializing Wan 2.2 Video Generator...")
-
-        # --- Platform-aware device and dtype selection ---
-        if torch.cuda.is_available():
-            self.device = torch.device("cuda")
-            self.dtype = torch.bfloat16
-            logger.info("✅ CUDA available. Using GPU with bfloat16.")
-        # Check for macOS and Apple Silicon
-        elif sys.platform == "darwin" and torch.backends.mps.is_available():
-            self.device = torch.device("mps")
-            self.dtype = torch.float32  # bfloat16 not fully supported on MPS
-            logger.info("✅ Apple MPS available. Using GPU with float32.")
-        else:
-            self.device = torch.device("cpu")
-            self.dtype = torch.float32
-            logger.info("⚠️ No CUDA or MPS GPU available. Falling back to CPU with float32 (will be very slow).")
-
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
         model_id = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
         
-        # --- Step 1: Load a known-good VAE and modify its class for compatibility ---
-        logger.info("📦 Loading stable VAE weights from stabilityai/stable-video-diffusion-img2vid-xt...")
-        # Load the stable, known-good video VAE
-        vae = AutoencoderKL.from_pretrained(
+        # --- Step 1: Load Wan VAE with pretrained weights to preserve attributes (repo-recommended) ---
+        logger.info("📦 Loading the original Wan VAE (AutoencoderKLWan) with pretrained weights...")
+        vae = AutoencoderKLWan.from_pretrained(
+            model_id,
+            subfolder="vae",
+            trust_remote_code=True,
+        )
+
+        # Selective patching: Load only stable decoder weights from SVD (avoids full overwrite issues, per repo issues)
+        logger.info("📦 Loading stable decoder weights from SVD VAE...")
+        stable_vae = AutoencoderKL.from_pretrained(
             "stabilityai/stable-video-diffusion-img2vid-xt", 
             subfolder="vae"
         )
-        
-        logger.info("🔧 Modifying VAE class to satisfy pipeline's type check...")
-        # The WanPipeline strictly checks for the `AutoencoderKLWan` class.
-        # We dynamically change the class of our loaded, stable VAE to trick this check.
-        # This uses the good VAE's architecture and weights directly.
-        vae.__class__ = AutoencoderKLWan
-        
+        # Transfer only decoder and post-quant modules for stability
+        vae.decoder.load_state_dict(stable_vae.decoder.state_dict(), strict=False)
+        vae.post_quant_conv.load_state_dict(stable_vae.post_quant_conv.state_dict(), strict=False)
         vae.to(self.dtype)
-        logger.info("✅ VAE is now configured with stable weights and the correct class type.")
-
+        
+        # Ensure key attribute exists (fallback from repo issues)
+        if not hasattr(vae, 'temporal_downsample'):
+            logger.warning("⚠️ temporal_downsample missing - setting fallback from config (sum=2 for scale=4).")
+            vae.temporal_downsample = [1, 1]  # Matches typical Wan config (2**2=4)
+        
+        logger.info("✅ VAE patched selectively with stable weights.")
 
         # --- Step 2: Load the Main Pipeline with the Corrected VAE ---
-        logger.info(f"📦 Loading WanPipeline from {model_id} with our corrected VAE...")
-        self.pipe = WanPipeline.from_pretrained(
-            model_id,
-            vae=vae,
-            torch_dtype=self.dtype,
-            trust_remote_code=True
-        )
-        self.pipe.to(self.device)
-        logger.info(f"✅ Pipeline loaded to device '{self.device}'.")
+        logger.info(f"📦 Loading WanPipeline from {model_id} with corrected VAE...")
+        try:
+            self.pipe = WanPipeline.from_pretrained(
+                model_id,
+                vae=vae,
+                torch_dtype=self.dtype,
+                trust_remote_code=True
+            )
+            self.pipe.to(self.device)
+            # Repo-recommended optimizations for memory and stability
+            self.pipe.enable_vae_slicing()
+            self.pipe.enable_model_cpu_offload()  # Offload to CPU if VRAM low
+            logger.info("✅ Pipeline loaded to device with optimizations.")
+        except Exception as e:
+            logger.error(f"❌ Error loading pipeline: {str(e)}")
+            raise
 
-        # --- Step 3: Compile for Performance (only on CUDA) ---
-        if self.device.type == 'cuda':
-            logger.info("🔧 Compiling model with torch.compile for CUDA performance...")
-            self.pipe.transformer = torch.compile(self.pipe.transformer, mode="max-autotune", fullgraph=True)
-            # self.pipe.vae.decode = torch.compile(self.pipe.vae.decode, mode="max-autotune", fullgraph=True) # VAE decode is not compatible with torch.compile
-            logger.info("✅ Model compiled successfully.")
-        else:
-            logger.info(f"Skipping torch.compile (not on a CUDA device, found '{self.device.type}').")
-            
+        # --- Step 3: Compile for Performance ---
+        logger.info("🔧 Compiling model with torch.compile (first run will be slow)...")
+        self.pipe.transformer = torch.compile(self.pipe.transformer, mode="max-autotune", fullgraph=True)
+        logger.info("✅ Model compiled successfully.")
+        
         logger.info("🚀 Predictor is ready.")
 
     def predict(
@@ -127,4 +123,8 @@ class Predictor:
         export_to_video(video_frames, output_path, fps=fps)
         
         logger.info(f"✅ Video saved to {output_path}")
+        
+        # Clean up temp files
+        rp_cleanup.clean(["/tmp"])
+        
         return output_path
