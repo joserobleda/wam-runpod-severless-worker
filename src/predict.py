@@ -1,6 +1,6 @@
 """
 Simplified Wan 2.2 TI2V-5B using Diffusers with Full Parameter Support
-Based on official Hugging Face documentation and Wan2.2 GitHub repo
+Based on official Hugging Face documentation, Wan2.2 GitHub repo, and ComfyUI integration insights
 """
 
 import os
@@ -30,7 +30,7 @@ class Predictor:
         self.dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
         model_id = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
         
-        # --- Step 1: Load Wan VAE with pretrained weights to preserve attributes (repo-recommended) ---
+        # --- Step 1: Load Wan VAE with pretrained weights (repo/ComfyUI-recommended) ---
         logger.info("📦 Loading the original Wan VAE (AutoencoderKLWan) with pretrained weights...")
         vae = AutoencoderKLWan.from_pretrained(
             model_id,
@@ -38,42 +38,38 @@ class Predictor:
             trust_remote_code=True,
         )
 
-        # Selective patching: Load only stable decoder weights from SVD (avoids full overwrite issues, per repo issues)
-        logger.info("📦 Loading stable decoder weights from SVD VAE...")
+        # Fuller patching inspired by ComfyUI: Transfer encoder, decoder, quant, post_quant from SVD
+        logger.info("📦 Loading stable weights from SVD VAE and patching comprehensively...")
         stable_vae = AutoencoderKL.from_pretrained(
             "stabilityai/stable-video-diffusion-img2vid-xt", 
             subfolder="vae"
         )
-        # Transfer only decoder and post-quant modules for stability
+        # Copy key modules (matches ComfyUI's approach for better stability without attribute loss)
+        vae.encoder.load_state_dict(stable_vae.encoder.state_dict(), strict=False)
         vae.decoder.load_state_dict(stable_vae.decoder.state_dict(), strict=False)
+        vae.quant_conv.load_state_dict(stable_vae.quant_conv.state_dict(), strict=False)
         vae.post_quant_conv.load_state_dict(stable_vae.post_quant_conv.state_dict(), strict=False)
         vae.to(self.dtype)
-        
-        # The pipeline checks for a 'temperal_downsample' attribute. The original VAE should have it,
-        # but we add a fallback just in case, based on community recommendations.
-        if not hasattr(vae, 'temperal_downsample'):
-            logger.warning("⚠️ 'temperal_downsample' missing. Setting fallback value [1, 1].")
-            vae.temperal_downsample = [1, 1]
-        
-        logger.info("✅ VAE patched selectively with stable weights.")
+        logger.info("✅ VAE patched with stable SVD weights (full modules).")
 
         # --- Step 2: Load the Main Pipeline with the Corrected VAE ---
         logger.info(f"📦 Loading WanPipeline from {model_id} with corrected VAE...")
-        
-        self.pipe = WanPipeline.from_pretrained(
-            model_id,
-            vae=vae,
-            torch_dtype=self.dtype,
-            trust_remote_code=True
-        )
-        
-        # Repo-recommended optimizations for memory and stability
-        self.pipe.enable_vae_slicing()
-        self.pipe.enable_model_cpu_offload()  # Offload to CPU if VRAM low
-        
-        self.pipe.to(self.device)
-        logger.info("✅ Pipeline loaded to device with optimizations.")
-        
+        try:
+            self.pipe = WanPipeline.from_pretrained(
+                model_id,
+                vae=vae,
+                torch_dtype=self.dtype,
+                trust_remote_code=True
+            )
+            self.pipe.to(self.device)
+            # Optimizations (inspired by ComfyUI and repo)
+            self.pipe.enable_vae_slicing()
+            self.pipe.enable_model_cpu_offload()  # For low VRAM
+            logger.info("✅ Pipeline loaded to device with optimizations.")
+        except Exception as e:
+            logger.error(f"❌ Error loading pipeline: {str(e)}")
+            raise
+
         # --- Step 3: Compile for Performance ---
         logger.info("🔧 Compiling model with torch.compile (first run will be slow)...")
         self.pipe.transformer = torch.compile(self.pipe.transformer, mode="max-autotune", fullgraph=True)
