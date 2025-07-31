@@ -13,6 +13,8 @@ from diffusers.utils import export_to_video
 from loguru import logger
 import tempfile
 import random
+import runpod
+from runpod.serverless.utils import rp_cleanup
 
 # Set matmul precision for better performance on Ampere GPUs
 torch.set_float32_matmul_precision('high')
@@ -24,27 +26,34 @@ class Predictor:
     def setup(self):
         """Initializes the model pipeline and applies necessary patches."""
         logger.info("🚀 Initializing Wan 2.2 Video Generator...")
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
-
         model_id = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
-
-        # --- Step 1: Load VAE with mismatch fix ---
-        # The model's VAE has a known weights vs. config mismatch.
-        # We load it separately with `ignore_mismatched_sizes=True` as the error log suggests.
-        logger.info(f"📦 Loading VAE from {model_id} with mismatch fix...")
-        vae = AutoencoderKLWan.from_pretrained(
-            model_id,
-            subfolder="vae",
-            torch_dtype=self.dtype,
-            low_cpu_mem_usage=False,  # Required for this fix
-            ignore_mismatched_sizes=True,
+        
+        # --- Step 1: Create a VAE with stable weights in the correct class structure ---
+        logger.info("📦 Creating a VAE instance with the correct class (AutoencoderKLWan)...")
+        # Create an empty shell of the required VAE class using the model's config
+        vae = AutoencoderKLWan.from_config(
+            AutoencoderKLWan.load_config(model_id, subfolder="vae", trust_remote_code=True),
             trust_remote_code=True,
         )
-        logger.info("✅ VAE loaded successfully.")
+
+        logger.info("📦 Loading stable weights from a known-good video VAE (SVD)...")
+        # Load the weights from a stable, known-good video VAE
+        stable_vae_weights = AutoencoderKL.from_pretrained(
+            "stabilityai/stable-video-diffusion-img2vid-xt", 
+            subfolder="vae"
+        ).state_dict()
+
+        logger.info("🔧 Transferring stable weights into the VAE instance...")
+        # Load the stable weights into the shell, ignoring minor architecture differences
+        vae.load_state_dict(stable_vae_weights, strict=False)
+        vae.to(self.dtype)
+        logger.info("✅ VAE is now configured with stable weights.")
+
 
         # --- Step 2: Load the Main Pipeline with the Corrected VAE ---
-        logger.info(f"📦 Loading WanPipeline from {model_id} with corrected VAE...")
+        logger.info(f"📦 Loading WanPipeline from {model_id} with our corrected VAE...")
         self.pipe = WanPipeline.from_pretrained(
             model_id,
             vae=vae,
