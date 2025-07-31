@@ -43,7 +43,65 @@ SCALE_FACTOR = 0.00010307
 torch.set_float32_matmul_precision('high')
 
 class Predictor:
-    # (setup method remains the same as you provided; no changes needed here)
+    def setup(self):
+        """Initializes the model pipeline and applies necessary patches."""
+        logger.info("🚀 Initializing Wan 2.2 Video Generator...")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+        model_id = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
+        
+        # --- Step 1: Load Wan VAE with pretrained weights (repo/ComfyUI-recommended) ---
+        logger.info("📦 Loading the original Wan VAE (AutoencoderKLWan) with pretrained weights...")
+        vae = AutoencoderKLWan.from_pretrained(
+            model_id,
+            subfolder="vae",
+            trust_remote_code=True,
+            # The VAE weights in the repo are known to have size mismatches.
+            # We ignore them and disable low_cpu_mem_usage for this component
+            # to allow loading, as we will immediately overwrite the problematic
+            # layers with stable weights from SVD.
+            ignore_mismatched_sizes=True,
+            low_cpu_mem_usage=False,
+        )
+
+        # Fuller patching inspired by ComfyUI: Transfer encoder, decoder, quant, post_quant from SVD
+        logger.info("📦 Loading stable weights from SVD VAE and patching comprehensively...")
+        stable_vae = AutoencoderKL.from_pretrained(
+            "stabilityai/stable-video-diffusion-img2vid-xt", 
+            subfolder="vae"
+        )
+        # Copy key modules (matches ComfyUI's approach for better stability without attribute loss)
+        vae.encoder.load_state_dict(stable_vae.encoder.state_dict(), strict=False)
+        vae.decoder.load_state_dict(stable_vae.decoder.state_dict(), strict=False)
+        vae.quant_conv.load_state_dict(stable_vae.quant_conv.state_dict(), strict=False)
+        vae.post_quant_conv.load_state_dict(stable_vae.post_quant_conv.state_dict(), strict=False)
+        vae.to(self.dtype)
+        logger.info("✅ VAE patched with stable SVD weights (full modules).")
+
+        # --- Step 2: Load the Main Pipeline with the Corrected VAE ---
+        logger.info(f"📦 Loading WanPipeline from {model_id} with corrected VAE...")
+        try:
+            self.pipe = WanPipeline.from_pretrained(
+                model_id,
+                vae=vae,
+                torch_dtype=self.dtype,
+                trust_remote_code=True
+            )
+            self.pipe.to(self.device)
+            # Optimizations (inspired by ComfyUI and repo)
+            self.pipe.enable_vae_slicing()
+            self.pipe.enable_model_cpu_offload()  # For low VRAM
+            logger.info("✅ Pipeline loaded to device with optimizations.")
+        except Exception as e:
+            logger.error(f"❌ Error loading pipeline: {str(e)}")
+            raise
+
+        # --- Step 3: Compile for Performance ---
+        logger.info("🔧 Compiling model with torch.compile (first run will be slow)...")
+        self.pipe.transformer = torch.compile(self.pipe.transformer, mode="max-autotune", fullgraph=True)
+        logger.info("✅ Model compiled successfully.")
+        
+        logger.info("🚀 Predictor is ready.")
 
     def predict(
         self,
@@ -81,41 +139,39 @@ class Predictor:
             guidance_scale=guidance_scale,
             generator=generator,
             output_type="latent"
-        ).frames  # Assumes shape (B, C, F, H, W)
+        ).frames
 
-        # --- Step 2: Manually decode latents using ComfyUI's method ---
-        # This is the crucial step to fix color and quality issues.
+        # --- Step 2: Manually decode latents using ComfyUI's method (Vectorized for Performance) ---
         video_frames = []
-        
-        # Move factors to the correct device and dtype
         rgb_factors = torch.tensor(LATENT_RGB_FACTORS, device=self.device, dtype=self.dtype).unsqueeze(0)
         
-        # Permute latents to (F, B, C, H, W) for easier processing
-        latents = latents.permute(2, 0, 1, 3, 4)  # F = num_frames
+        latents = latents.permute(2, 0, 1, 3, 4)
         
-        # Decode in a batch if possible (faster than loop for small num_frames)
         try:
-            # Batch decode all frames at once (assumes VAE supports it)
-            decoded = self.pipe.vae.decode(latents.reshape(-1, latents.shape[2], latents.shape[3], latents.shape[4]) / SCALE_FACTOR).sample  # Flatten frames into batch
-            decoded = decoded.reshape(latents.shape[0], latents.shape[1], -1, decoded.shape[2], decoded.shape[3])  # Reshape back
+            # Fast-path: Attempt to decode all frames in a single batch for maximum speed.
+            logger.info("🏎️ Attempting fast-path batch decoding...")
+            batch_size, channels, height, width = latents.shape[2], latents.shape[3], latents.shape[4], latents.shape[5]
+            decoded = self.pipe.vae.decode(latents.reshape(-1, channels, height, width) / SCALE_FACTOR).sample
         except Exception as e:
-            logger.warning(f"Batch decode failed ({str(e)}), falling back to frame-by-frame.")
-            decoded = []
+            # Fallback: If batching fails (e.g., OOM), process frame-by-frame.
+            logger.warning(f"Batch decode failed ({e}), falling back to slower frame-by-frame decoding.")
+            decoded_list = []
             for latent_frame in latents:
                 decoded_frame = self.pipe.vae.decode(latent_frame / SCALE_FACTOR).sample
-                decoded.append(decoded_frame)
-            decoded = torch.cat(decoded, dim=0)  # Stack into tensor
+                decoded_list.append(decoded_frame)
+            decoded = torch.cat(decoded_list, dim=0)
 
-        # Apply corrections (vectorized over all frames)
-        decoded = decoded.permute(0, 2, 3, 1)  # To (F, H, W, C) for einsum
-        corrected = torch.einsum('...i,ji->...j', decoded, rgb_factors[0])  # Apply RGB factors
-        corrected = corrected.permute(0, 3, 1, 2)  # Back to (F, C, H, W)
+        # Apply color correction (vectorized over all frames)
+        decoded = decoded.permute(0, 2, 3, 1)
+        corrected = torch.einsum('...i,ji->...j', decoded, rgb_factors[0])
+        corrected = corrected.permute(0, 3, 1, 2)
         corrected = corrected.clamp(0, 1)
         
         # Convert to numpy/PIL
         video_np = (corrected * 255).cpu().numpy().astype(np.uint8)
         for frame_np in video_np:
-            video_pil = Image.fromarray(frame_np.transpose(1, 2, 0))  # (C, H, W) -> (H, W, C)
+            # The numpy array is (C, H, W), but PIL needs (H, W, C), so we transpose.
+            video_pil = Image.fromarray(frame_np.transpose(1, 2, 0))
             video_frames.append(video_pil)
 
         # --- Export Video ---
@@ -124,7 +180,5 @@ class Predictor:
         export_to_video(video_frames, output_path, fps=fps)
         
         logger.info(f"✅ Video saved to {output_path}")
-        
-        # Clean up temp files
         
         return output_path
