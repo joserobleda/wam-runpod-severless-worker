@@ -28,13 +28,20 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # Copy and install Python dependencies
 COPY builder/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir --verbose -r /tmp/requirements.txt && \
+    echo "Successfully installed requirements from requirements.txt"
 
 # Install additional optimizations for video processing
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir --verbose \
     av \
-    decord \
-    opencv-python-headless
+    decord && \
+    echo "Successfully installed additional video processing packages"
+
+# Verify critical packages are installed
+RUN python3 -c "import torch; print(f'PyTorch version: {torch.__version__}')" && \
+    python3 -c "import runpod; print(f'RunPod version: {runpod.__version__}')" && \
+    python3 -c "import diffusers; print(f'Diffusers version: {diffusers.__version__}')" && \
+    echo "All critical packages verified successfully"
 
 # Create necessary directories
 RUN mkdir -p /builder /src /runpod-volume/model /runpod-volume/outputs /runpod-volume/.cache

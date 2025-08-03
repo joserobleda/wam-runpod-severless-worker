@@ -1,0 +1,13 @@
+{
+  "input": {
+    "prompt": "A red ball rolling",
+    "negative_prompt": "",
+    "num_frames": 25,
+    "guidance_scale": 3.5,
+    "num_inference_steps": 20,
+    "width": 320,
+    "height": 240,
+    "fps": 8,
+    "seed": 123
+  }
+}
