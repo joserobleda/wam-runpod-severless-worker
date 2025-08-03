@@ -1,0 +1,13 @@
+{
+  "input": {
+    "prompt": "A majestic dragon soaring through clouds above an ancient castle, its scales shimmering with golden light as it breathes small puffs of blue flame, the castle towers reaching up towards a dramatic sunset sky with purple and orange hues, fantasy cinematic style",
+    "negative_prompt": "blurry, low quality, distorted, ugly, bad anatomy, bad composition, text, watermark",
+    "num_frames": 81,
+    "guidance_scale": 7.5,
+    "num_inference_steps": 50,
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "seed": 12345
+  }
+} 

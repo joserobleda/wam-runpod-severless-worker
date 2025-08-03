@@ -1,27 +1,30 @@
-# --- Core ML Stack (Version-Pinned for Stability) ---
-torch==2.4.1
-torchvision==0.19.1
-diffusers==0.34.0
-transformers==4.44.0
-accelerate==0.33.0
-safetensors>=0.4.4
-xformers==0.0.27.post2
-einops==0.8.0
-omegaconf
+# Core dependencies for Wan2.2 model
+torch>=2.4.0
+torchvision
+torchaudio
+diffusers>=0.30.0
+transformers>=4.44.0
+accelerate>=0.33.0
+huggingface_hub>=0.24.0
 
-# --- Serverless Application Dependencies ---
-runpod>=1.4.2
-boto3
-botocore
-loguru
-huggingface_hub
+# Image and video processing
+pillow>=10.0.0
+opencv-python>=4.8.0
+imageio>=2.31.0
+imageio-ffmpeg>=0.4.9
 
-# --- Image/Video Processing Essentials ---
-Pillow>=10.4.0
-numpy>=1.26.0
-imageio>=2.35.0
-imageio-ffmpeg>=0.5.1
-opencv-python-headless>=4.10.0
+# Text processing
+ftfy>=6.1.0
+tokenizers>=0.19.0
 
-# --- Text Processing for CogVideoX ---
-ftfy
+# RunPod serverless SDK
+runpod>=1.6.0
+
+# Utilities
+numpy>=1.24.0
+scipy>=1.11.0
+requests>=2.31.0
+psutil>=5.9.0
+
+# Optional optimizations
+xformers>=0.0.22; platform_machine == "x86_64" 

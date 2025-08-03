@@ -1,44 +1,91 @@
-# CogVideoX-5b RunPod Serverless Worker
-FROM pytorch/pytorch:2.4.1-cuda11.8-cudnn9-runtime
+# Use the official RunPod base image with CUDA support
+FROM runpod/base:0.6.2-cuda12.2.0
 
+# Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
-ENV WORKER_DIR=/app
-ENV TORCHINDUCTOR_CACHE_DIR=/persistent_volume/torch_cache
-ENV HF_HOME=/root/.cache/huggingface
-ENV DIFFUSERS_CACHE=/root/.cache/huggingface/diffusers
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV HF_HUB_CACHE=/runpod-volume/.cache/huggingface
 
 # Install system dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    build-essential \
+RUN apt-get update && apt-get install -y \
     ffmpeg \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libglib2.0-0 \
+    libfontconfig1 \
+    libgstreamer1.0-0 \
+    libgstreamer-plugins-base1.0-0 \
     git \
-    curl && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-# Set working directory
-WORKDIR ${WORKER_DIR}
+# Upgrade pip and install wheel
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Install Python dependencies
-COPY builder/requirements.txt ${WORKER_DIR}/
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy and install Python dependencies
+COPY builder/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Copy source files
-COPY src ${WORKER_DIR}/
-RUN chmod +x ${WORKER_DIR}/startup.sh
+# Install additional optimizations for video processing
+RUN pip install --no-cache-dir \
+    av \
+    decord \
+    opencv-python-headless
 
 # Create necessary directories
-RUN mkdir -p /tmp/video_generation \
-    /root/.cache/huggingface/transformers \
-    /root/.cache/huggingface/diffusers \
-    ${WORKER_DIR}/model_cache
+RUN mkdir -p /builder /src /runpod-volume/model /runpod-volume/outputs /runpod-volume/.cache
 
-# Pre-download the model during build (optional - can be done at runtime)
-# Uncomment the following lines if you want to download during build:
-# RUN cd ${WORKER_DIR} && python3 download_model.py
+# Copy builder scripts
+COPY builder/ /builder/
+RUN chmod +x /builder/download_model.py
 
-# Set proper permissions
-RUN chmod -R 755 ${WORKER_DIR}
+# Copy source code
+COPY src/ /src/
+RUN chmod +x /src/handler.py
 
-CMD ["/app/startup.sh"] 
+# Set working directory
+WORKDIR /src
+
+# Create a health check script
+RUN echo '#!/bin/bash\npython3 -c "from src.handler import health_check; import json; print(json.dumps(health_check(), indent=2))"' > /health_check.sh
+RUN chmod +x /health_check.sh
+
+# Set up the entrypoint
+COPY <<EOF /entrypoint.sh
+#!/bin/bash
+set -e
+
+echo "Starting Wan2.2 RunPod Serverless Worker..."
+echo "Python version: \$(python3 --version)"
+echo "PyTorch version: \$(python3 -c 'import torch; print(torch.__version__)')"
+echo "CUDA available: \$(python3 -c 'import torch; print(torch.cuda.is_available())')"
+
+# Set up Python path
+export PYTHONPATH="/src:/builder:\$PYTHONPATH"
+
+# Start the handler
+cd /src
+exec python3 handler.py
+EOF
+
+RUN chmod +x /entrypoint.sh
+
+# Health check (optional)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD /health_check.sh || exit 1
+
+# Expose the port (RunPod uses dynamic ports, but this is for documentation)
+EXPOSE 8000
+
+# Set the entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Labels for better organization
+LABEL maintainer="RunPod Deployment"
+LABEL description="Wan-AI/Wan2.2-T2V-A14B-Diffusers text-to-video generation"
+LABEL version="1.0.0"
+LABEL model="Wan-AI/Wan2.2-T2V-A14B-Diffusers" 

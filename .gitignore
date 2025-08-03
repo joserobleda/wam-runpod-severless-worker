@@ -1,67 +1,41 @@
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
 
-# PyTorch
-*.pth
-*.pt
-*.ckpt
+# Environments
+.env
+.venv
+env/
+venv/
 
-# Model files (optional - comment out if you want to track models)
-model/
+# Model files
 *.safetensors
 *.bin
+*.ckpt
+*.pth
 
-# Environment variables
-.env
-.env.local
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-logs/
-
-# Docker
-.dockerignore
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-
-# Video outputs (for local testing)
+# Generated videos
+outputs/
 *.mp4
 *.avi
 *.mov
 
 # RunPod specific
-runpod-config.json 
+runpod-volume/
+.runpod/
+
+# Logs and temp
+*.log
+*.tmp
+temp/
