@@ -54,35 +54,7 @@ RUN echo "=== Verifying Package Installations ===" && \
     echo "Installed packages:" && \
     pip list | grep -E "(torch|runpod|diffusers)" && \
     echo "=== Testing Package Imports ===" && \
-    python3 -c "
-import sys
-print(f'Python path: {sys.path}')
-try:
-    import torch
-    print(f'✓ PyTorch version: {torch.__version__}')
-    print(f'✓ CUDA available: {torch.cuda.is_available()}')
-    if torch.cuda.is_available():
-        print(f'✓ CUDA device count: {torch.cuda.device_count()}')
-except Exception as e:
-    print(f'✗ PyTorch import failed: {e}')
-    raise e
-
-try:
-    import runpod
-    print(f'✓ RunPod version: {runpod.__version__}')
-except Exception as e:
-    print(f'✗ RunPod import failed: {e}')
-    raise e
-
-try:
-    import diffusers
-    print(f'✓ Diffusers version: {diffusers.__version__}')
-except Exception as e:
-    print(f'✗ Diffusers import failed: {e}')
-    raise e
-
-print('✓ All critical packages verified successfully')
-"
+    python3 -c "import sys; print(f'Python path: {sys.path}'); import torch; print(f'✓ PyTorch version: {torch.__version__}'); print(f'✓ CUDA available: {torch.cuda.is_available()}'); import runpod; print(f'✓ RunPod version: {runpod.__version__}'); import diffusers; print(f'✓ Diffusers version: {diffusers.__version__}'); print('✓ All critical packages verified successfully')"
 
 # Create necessary directories
 RUN mkdir -p /builder /src /runpod-volume/model /runpod-volume/outputs /runpod-volume/.cache
