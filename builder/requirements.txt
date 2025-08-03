@@ -1,5 +1,10 @@
 # Core dependencies for Wan2.2 model
-# PyTorch packages are installed separately in Dockerfile
+# PyTorch packages with CUDA support
+torch==2.5.1+cu121
+torchvision==0.20.1+cu121
+torchaudio==2.5.1+cu121
+
+# AI/ML dependencies
 diffusers>=0.30.0
 transformers>=4.44.0
 accelerate>=0.33.0
@@ -24,5 +29,4 @@ scipy>=1.11.0
 requests>=2.31.0
 psutil>=5.9.0
 
-# Note: xformers removed due to PyTorch version conflicts
-# It can be installed separately if needed with specific CUDA compatibility 
+# Note: xformers blocked in constraints.txt due to PyTorch version conflicts 

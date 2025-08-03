@@ -26,46 +26,26 @@ RUN apt-get update && apt-get install -y \
 # Upgrade pip and install wheel
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Install PyTorch with exact versions first to prevent conflicts
-RUN pip install --no-cache-dir --verbose --root-user-action=ignore \
-    --index-url https://download.pytorch.org/whl/cu121 \
-    torch==2.5.1+cu121 \
-    torchvision==0.20.1+cu121 \
-    torchaudio==2.5.1+cu121 && \
-    echo "Successfully installed PyTorch with CUDA support" && \
-    pip list | grep torch
-
 # Copy requirements file
 COPY builder/requirements.txt /tmp/requirements.txt
 
-# Create constraints file to lock PyTorch versions and prevent conflicts
-RUN echo "torch==2.5.1+cu121" > /tmp/constraints.txt && \
+# Create a comprehensive constraints file that locks PyTorch versions and blocks xformers
+RUN echo "# Lock PyTorch to CUDA versions" > /tmp/constraints.txt && \
+    echo "torch==2.5.1+cu121" >> /tmp/constraints.txt && \
     echo "torchvision==0.20.1+cu121" >> /tmp/constraints.txt && \
     echo "torchaudio==2.5.1+cu121" >> /tmp/constraints.txt && \
+    echo "# Block xformers completely to prevent conflicts" >> /tmp/constraints.txt && \
+    echo "xformers==999.0.0  # Impossible version to block installation" >> /tmp/constraints.txt && \
     echo "=== Constraints file ===" && \
     cat /tmp/constraints.txt
 
-# Create a modified requirements file excluding PyTorch packages and problematic deps
-RUN grep -v -E "^torch==|^torchvision==|^torchaudio==|^diffusers|^transformers|^accelerate" /tmp/requirements.txt > /tmp/requirements_no_torch.txt && \
-    echo "=== Filtered requirements file ===" && \
-    cat /tmp/requirements_no_torch.txt
-
-# Install potentially problematic packages with --no-deps to prevent xformers conflicts
+# Install all remaining dependencies with constraints to prevent any conflicts
 RUN pip install --no-cache-dir --verbose --root-user-action=ignore \
     --constraint /tmp/constraints.txt \
     --extra-index-url https://download.pytorch.org/whl/cu121 \
-    --no-deps \
-    diffusers>=0.30.0 \
-    transformers>=4.44.0 \
-    accelerate>=0.33.0
-
-# Install remaining dependencies with constraints to prevent conflicts
-RUN pip install --no-cache-dir --verbose --root-user-action=ignore \
-    --constraint /tmp/constraints.txt \
-    --extra-index-url https://download.pytorch.org/whl/cu121 \
-    -r /tmp/requirements_no_torch.txt && \
-    echo "Successfully installed remaining requirements" && \
-    pip list | grep -E "(runpod|diffusers)"
+    -r /tmp/requirements.txt && \
+    echo "Successfully installed all requirements" && \
+    pip list | grep -E "(torch|runpod|diffusers)"
 
 # Install additional optimizations for video processing
 RUN pip install --no-cache-dir --verbose --root-user-action=ignore \
