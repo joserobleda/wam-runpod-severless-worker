@@ -26,11 +26,11 @@ RUN apt-get update && apt-get install -y \
 # Upgrade pip and install wheel
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Install PyTorch with CUDA support first (using correct index URL)
+# Install PyTorch with CUDA support first (using correct index URL with compatible versions)
 RUN pip install --no-cache-dir --verbose --root-user-action=ignore \
-    torch>=2.4.0 \
-    torchvision \
-    torchaudio \
+    torch==2.5.1 \
+    torchvision==0.20.1 \
+    torchaudio==2.5.1 \
     --index-url https://download.pytorch.org/whl/cu121 && \
     echo "Successfully installed PyTorch with CUDA support" && \
     pip list | grep torch
