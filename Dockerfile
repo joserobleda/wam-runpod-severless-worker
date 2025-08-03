@@ -38,11 +38,30 @@ RUN pip install --no-cache-dir --verbose --root-user-action=ignore \
 # Copy requirements file
 COPY builder/requirements.txt /tmp/requirements.txt
 
-# Create a modified requirements file excluding PyTorch packages
-RUN grep -v -E "^torch==|^torchvision==|^torchaudio==" /tmp/requirements.txt > /tmp/requirements_no_torch.txt
+# Create constraints file to lock PyTorch versions and prevent conflicts
+RUN echo "torch==2.5.1+cu121" > /tmp/constraints.txt && \
+    echo "torchvision==0.20.1+cu121" >> /tmp/constraints.txt && \
+    echo "torchaudio==2.5.1+cu121" >> /tmp/constraints.txt && \
+    echo "=== Constraints file ===" && \
+    cat /tmp/constraints.txt
 
-# Install remaining dependencies
+# Create a modified requirements file excluding PyTorch packages and problematic deps
+RUN grep -v -E "^torch==|^torchvision==|^torchaudio==|^diffusers|^transformers|^accelerate" /tmp/requirements.txt > /tmp/requirements_no_torch.txt && \
+    echo "=== Filtered requirements file ===" && \
+    cat /tmp/requirements_no_torch.txt
+
+# Install potentially problematic packages with --no-deps to prevent xformers conflicts
 RUN pip install --no-cache-dir --verbose --root-user-action=ignore \
+    --constraint /tmp/constraints.txt \
+    --extra-index-url https://download.pytorch.org/whl/cu121 \
+    --no-deps \
+    diffusers>=0.30.0 \
+    transformers>=4.44.0 \
+    accelerate>=0.33.0
+
+# Install remaining dependencies with constraints to prevent conflicts
+RUN pip install --no-cache-dir --verbose --root-user-action=ignore \
+    --constraint /tmp/constraints.txt \
     --extra-index-url https://download.pytorch.org/whl/cu121 \
     -r /tmp/requirements_no_torch.txt && \
     echo "Successfully installed remaining requirements" && \
