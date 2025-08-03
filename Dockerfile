@@ -26,22 +26,38 @@ RUN apt-get update && apt-get install -y \
 # Upgrade pip and install wheel
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Copy and install Python dependencies
+# Install PyTorch with CUDA support first (using correct index URL)
+RUN pip install --no-cache-dir --verbose --root-user-action=ignore \
+    torch>=2.4.0 \
+    torchvision \
+    torchaudio \
+    --index-url https://download.pytorch.org/whl/cu121 && \
+    echo "Successfully installed PyTorch with CUDA support" && \
+    pip list | grep torch
+
+# Copy and install remaining Python dependencies
 COPY builder/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir --verbose -r /tmp/requirements.txt && \
-    echo "Successfully installed requirements from requirements.txt"
+
+# Create a modified requirements file without PyTorch packages
+RUN grep -v -E "^torch|^torchvision|^torchaudio" /tmp/requirements.txt > /tmp/requirements_no_torch.txt
+
+# Install remaining dependencies
+RUN pip install --no-cache-dir --verbose --root-user-action=ignore -r /tmp/requirements_no_torch.txt && \
+    echo "Successfully installed remaining requirements" && \
+    pip list | grep -E "(runpod|diffusers)"
 
 # Install additional optimizations for video processing
-RUN pip install --no-cache-dir --verbose \
+RUN pip install --no-cache-dir --verbose --root-user-action=ignore \
     av \
     decord && \
     echo "Successfully installed additional video processing packages"
 
 # Verify critical packages are installed
-RUN python3 -c "import torch; print(f'PyTorch version: {torch.__version__}')" && \
-    python3 -c "import runpod; print(f'RunPod version: {runpod.__version__}')" && \
-    python3 -c "import diffusers; print(f'Diffusers version: {diffusers.__version__}')" && \
-    echo "All critical packages verified successfully"
+RUN echo "=== Verifying Package Installations ===" && \
+    python3 -c "import torch; print(f'✓ PyTorch version: {torch.__version__}'); print(f'✓ CUDA available: {torch.cuda.is_available()}')" && \
+    python3 -c "import runpod; print(f'✓ RunPod version: {runpod.__version__}')" && \
+    python3 -c "import diffusers; print(f'✓ Diffusers version: {diffusers.__version__}')" && \
+    echo "✓ All critical packages verified successfully"
 
 # Create necessary directories
 RUN mkdir -p /builder /src /runpod-volume/model /runpod-volume/outputs /runpod-volume/.cache
