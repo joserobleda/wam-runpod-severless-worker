@@ -26,22 +26,27 @@ RUN apt-get update && apt-get install -y \
 # Upgrade pip and install wheel
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Create a constraints file to lock PyTorch versions
-RUN echo "torch==2.5.1" > /tmp/constraints.txt && \
-    echo "torchvision==0.20.1" >> /tmp/constraints.txt && \
-    echo "torchaudio==2.5.1" >> /tmp/constraints.txt
+# Install PyTorch with exact versions first to prevent conflicts
+RUN pip install --no-cache-dir --verbose --root-user-action=ignore \
+    --index-url https://download.pytorch.org/whl/cu121 \
+    torch==2.5.1+cu121 \
+    torchvision==0.20.1+cu121 \
+    torchaudio==2.5.1+cu121 && \
+    echo "Successfully installed PyTorch with CUDA support" && \
+    pip list | grep torch
 
-# Copy and install Python dependencies using constraints
+# Copy requirements file
 COPY builder/requirements.txt /tmp/requirements.txt
 
-# Install all packages including PyTorch with CUDA support, using constraints to ensure compatibility
+# Create a modified requirements file excluding PyTorch packages
+RUN grep -v -E "^torch==|^torchvision==|^torchaudio==" /tmp/requirements.txt > /tmp/requirements_no_torch.txt
+
+# Install remaining dependencies
 RUN pip install --no-cache-dir --verbose --root-user-action=ignore \
-    --constraint /tmp/constraints.txt \
-    --index-url https://download.pytorch.org/whl/cu121 \
-    --extra-index-url https://pypi.org/simple \
-    -r /tmp/requirements.txt && \
-    echo "Successfully installed all requirements with CUDA support" && \
-    pip list | grep -E "(torch|runpod|diffusers)"
+    --extra-index-url https://download.pytorch.org/whl/cu121 \
+    -r /tmp/requirements_no_torch.txt && \
+    echo "Successfully installed remaining requirements" && \
+    pip list | grep -E "(runpod|diffusers)"
 
 # Install additional optimizations for video processing
 RUN pip install --no-cache-dir --verbose --root-user-action=ignore \
@@ -51,10 +56,15 @@ RUN pip install --no-cache-dir --verbose --root-user-action=ignore \
 
 # Verify critical packages are installed
 RUN echo "=== Verifying Package Installations ===" && \
-    echo "Installed packages:" && \
-    pip list | grep -E "(torch|runpod|diffusers)" && \
+    echo "PyTorch packages:" && \
+    pip list | grep torch && \
+    echo "Other critical packages:" && \
+    pip list | grep -E "(runpod|diffusers)" && \
     echo "=== Testing Package Imports ===" && \
-    python3 -c "import sys; print(f'Python path: {sys.path}'); import torch; print(f'✓ PyTorch version: {torch.__version__}'); print(f'✓ CUDA available: {torch.cuda.is_available()}'); import runpod; print(f'✓ RunPod version: {runpod.__version__}'); import diffusers; print(f'✓ Diffusers version: {diffusers.__version__}'); print('✓ All critical packages verified successfully')"
+    python3 -c "import torch; print(f'✓ PyTorch version: {torch.__version__}'); print(f'✓ CUDA available: {torch.cuda.is_available()}'); print(f'✓ Device count: {torch.cuda.device_count() if torch.cuda.is_available() else 0}')" && \
+    python3 -c "import runpod; print(f'✓ RunPod version: {runpod.__version__}')" && \
+    python3 -c "import diffusers; print(f'✓ Diffusers version: {diffusers.__version__}')" && \
+    echo "✓ All critical packages verified successfully"
 
 # Create necessary directories
 RUN mkdir -p /builder /src /runpod-volume/model /runpod-volume/outputs /runpod-volume/.cache
